@@ -8,15 +8,16 @@ To develop and empirically evaluate a centralized web platform that hosts univer
 
 ## Specific Objectives
 
-| # | Objective (SMART) | Measure of success |
-|---|---|---|
-| 1 | To develop, by [Week X], a web platform that centralizes university policy documents into a single hosted repository with PDF upload and storage. | Platform hosts an initial corpus of ≥30 policy documents. |
-| 2 | To implement, by [Week X], an administration module for maintaining the repository: adding new policies, replacing outdated versions, and archiving retired ones. | An administrator completes each maintenance action end to end. |
-| 3 | To integrate, by [Week X], a RAG pipeline (vector embeddings + LLM, Chroma) that answers natural-language questions with citations to source policies. | ≥80% top-k retrieval precision on a benchmark set of 50 test questions. |
-| 4 | To deploy the system, by [Week X], to a test group of ≥20 users for a two-week period, logging every query (text, timestamp, retrieved documents, confidence score, unanswered queries) to the `QueryLog` table. | Dataset of ≥200 logged queries from real users. |
-| 5 | To analyze the collected data, by [Week X], benchmarking retrieval accuracy and identifying the most frequently queried and most ambiguous policies. | Evaluation report with accuracy metrics and policy-ambiguity charts for university leadership. |
+| # | Objective (SMART) | Timeline | Measure of success |
+|---|---|---|---|
+| 1 | To develop, by the end of Week 1, a web platform that centralizes university policy documents into a single hosted repository with PDF upload and storage. | Week 1 | Platform hosts an initial corpus of ≥30 policy documents. |
+| 2 | To implement, by the end of Week 2, an administration module for maintaining the repository: adding new policies, replacing outdated versions, and archiving retired ones. | Week 2 | An administrator completes each maintenance action end to end. |
+| 3 | To integrate, by the end of Week 4, a RAG pipeline (vector embeddings + LLM, Chroma) that answers natural-language questions with citations to source policies. | Weeks 3–4 | ≥80% top-k retrieval precision on a benchmark set of 50 test questions. |
+| 4 | To deploy the system, by the end of Week 6, to a test group of ≥20 users for a two-week period, logging every query (text, timestamp, retrieved documents, confidence score, unanswered queries) to the `QueryLog` table. | Weeks 5–6 | Dataset of ≥200 logged queries from real users. |
+| 5 | To analyze the collected data, by the end of Week 9, benchmarking retrieval accuracy and identifying the most frequently queried and most ambiguous policies. | Weeks 7–9 | Evaluation report with accuracy metrics and policy-ambiguity charts for university leadership. |
+
+Total duration: 9 weeks.
 
 ## Notes
 
-- [Week X] dates need binding to the module timetable.
 - Target numbers (30 documents, 20 users, 200 queries, 80% precision) are working defaults; adjust to cohort size and supervisor guidance.
