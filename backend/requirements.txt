@@ -1,0 +1,14 @@
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-JWT-Extended==4.6.0
+Flask-Bcrypt==1.0.1
+Flask-Cors==4.0.1
+PyMySQL==1.1.1
+python-dotenv==1.0.1
+pypdf==4.3.1
+chromadb==0.5.23
+# Client for the answering model. Points at any OpenAI-compatible endpoint via
+# LLM_BASE_URL, so the provider is configuration rather than a dependency.
+openai==2.53.0
+pydantic==2.13.4

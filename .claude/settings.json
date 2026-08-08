@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/LIZZIE/.claude/skills/system-design/references/**)",
+      "Bash(npm --version)",
+      "Bash(where mysql *)",
+      "Bash(ls \"/c/xampp\" 2>&1 | head -20; echo \"---\"; ls \"/c/xampp/mysql/bin\" 2>&1 | head -5)",
+      "Read(//c/xampp/**)",
+      "Read(//c/xampp/mysql/bin/**)",
+      "Bash(tasklist //FI \"IMAGENAME eq mysqld.exe\")",
+      "Bash(\"/c/xampp/mysql/bin/mysql.exe\" -u root -e \"CREATE DATABASE IF NOT EXISTS upman_db CHARACTER SET utf8mb4; SHOW DATABASES;\")"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "university-policy",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dev orchestration for the UPMAN backend (Flask) and frontend (React/Vite)",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c green,yellow \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "cd backend && venv\\Scripts\\python.exe run.py",
+    "dev:frontend": "npm --prefix frontend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
