@@ -11,4 +11,4 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-Runs on `http://localhost:5173` and talks to the Flask API at the URL in `.env` (`VITE_API_BASE_URL`, defaults to `http://localhost:5000/api/v1`). Start the backend first — see [../backend/README.md](../backend/README.md).
+Runs on `http://localhost:5173` and talks to the Flask API at the URL in `.env` (`VITE_API_BASE_URL`, defaults to `http://localhost:5001/api/v1`). Start the backend first — see [../backend/README.md](../backend/README.md).

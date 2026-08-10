@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { documentsApi } from "../api/client.js";
 import { formatDate } from "../utils/date.js";
@@ -9,6 +9,8 @@ import AiQueryPanel from "../components/AiQueryPanel.jsx";
 
 export default function PolicyReaderPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const page = searchParams.get("page");
   const { token } = useAuth();
   const [document_, setDocument] = useState(null);
   const [fileUrl, setFileUrl] = useState(null);
@@ -65,7 +67,15 @@ export default function PolicyReaderPage() {
         <div className="reader-layout">
           <div className="reader-viewer">
             {fileUrl ? (
-              <iframe src={fileUrl} title="Policy document" className="reader-iframe" />
+              // Keyed on the full src (page included) so a citation jump to a page already
+              // "loaded" still re-navigates the embedded PDF viewer instead of being a no-op
+              // hash change the plugin ignores.
+              <iframe
+                key={page ? `${fileUrl}#page=${page}` : fileUrl}
+                src={page ? `${fileUrl}#page=${page}` : fileUrl}
+                title="Policy document"
+                className="reader-iframe"
+              />
             ) : (
               !error && <p className="subtitle">Loading document...</p>
             )}

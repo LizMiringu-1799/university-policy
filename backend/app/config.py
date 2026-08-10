@@ -37,7 +37,9 @@ class Config:
     # model's 256-word-piece input window, not to the LLM context window: all-MiniLM-L6-v2
     # silently truncates past 256, so a larger chunk would be partly unretrievable.
     # See docs/design-rag.md §1.
-    CHROMA_DIR = os.environ.get("CHROMA_DIR", os.path.join(BASE_DIR, "data", "chroma"))
+    # `or`, not a dict-default get(): CHROMA_DIR="" in .env.example is present-but-blank,
+    # and os.environ.get only falls back to its default when the key is absent entirely.
+    CHROMA_DIR = os.environ.get("CHROMA_DIR") or os.path.join(BASE_DIR, "data", "chroma")
     CHROMA_COLLECTION = os.environ.get("CHROMA_COLLECTION", "policies")
     RAG_CHUNK_CHARS = int(os.environ.get("RAG_CHUNK_CHARS", 850))
     RAG_CHUNK_MAX_CHARS = int(os.environ.get("RAG_CHUNK_MAX_CHARS", 1100))

@@ -17,10 +17,22 @@ function renderLine(line, citedPages) {
     const numbers = match[0].replace(/[[\]\s]/g, "").split(",");
     for (const raw of numbers) {
       const n = Number(raw);
+      const citation = citedPages[n];
       parts.push(
-        <sup key={`${match.index}-${n}`} className="cite" title={citedPages[n] || `Source ${n}`}>
-          {n}
-        </sup>
+        citation ? (
+          <Link
+            key={`${match.index}-${n}`}
+            to={`/policies/${citation.documentId}?page=${citation.page}`}
+            className="cite"
+            title={citation.label}
+          >
+            {n}
+          </Link>
+        ) : (
+          <sup key={`${match.index}-${n}`} className="cite" title={`Source ${n}`}>
+            {n}
+          </sup>
+        )
       );
     }
     cursor = match.index + match[0].length;
@@ -96,7 +108,7 @@ export default function AiQueryPanel({
 
   const citedPages = {};
   for (const c of result?.citations || []) {
-    citedPages[c.n] = `${c.title}, page ${c.page}`;
+    citedPages[c.n] = { label: `${c.title}, page ${c.page}`, documentId: c.document_id, page: c.page };
   }
 
   return (
@@ -130,8 +142,10 @@ export default function AiQueryPanel({
               <ol>
                 {result.citations.map((c) => (
                   <li key={c.chunk_id} value={c.n}>
-                    <Link to={`/policies/${c.document_id}`}>{c.title}</Link>
-                    <span className="ai-source-page">page {c.page}</span>
+                    <Link to={`/policies/${c.document_id}?page=${c.page}`}>{c.title}</Link>
+                    <Link to={`/policies/${c.document_id}?page=${c.page}`} className="ai-source-page">
+                      page {c.page}
+                    </Link>
                   </li>
                 ))}
               </ol>

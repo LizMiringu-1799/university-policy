@@ -66,7 +66,7 @@ Safe to re-run — skips any account that already exists.
 python run.py
 ```
 
-Runs on `http://localhost:5000`, with endpoints under `/api/v1`. Contracts: design-auth.md §3 for auth, design-policies.md §4 for documents and admin CRUD, design-rag.md §7 for the index endpoints.
+Runs on `http://localhost:5001`, with endpoints under `/api/v1`. Contracts: design-auth.md §3 for auth, design-policies.md §4 for documents and admin CRUD, design-rag.md §7 for the index endpoints.
 
 ## 7. Policy indexing (RAG)
 
