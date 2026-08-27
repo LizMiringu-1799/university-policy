@@ -1,9 +1,35 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { adminEscalationsApi } from "../api/client.js";
 import Button from "./Button.jsx";
 
+const OPEN_COUNT_POLL_MS = 20000;
+
 export default function AppHeader() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
+  const [openCount, setOpenCount] = useState(0);
+
+  useEffect(() => {
+    if (user?.role !== "admin") return undefined;
+
+    let cancelled = false;
+    const poll = () => {
+      adminEscalationsApi
+        .openCount(token)
+        .then((data) => {
+          if (!cancelled) setOpenCount(data.count);
+        })
+        .catch(() => {});
+    };
+
+    poll();
+    const timer = setInterval(poll, OPEN_COUNT_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [user?.role, token]);
 
   return (
     <header className="app-header">
@@ -11,9 +37,19 @@ export default function AppHeader() {
         UPMAN
       </Link>
       <div className="app-header-actions">
-        {user?.role === "admin" && (
-          <Link to="/admin/policies" className="app-header-link">
-            Manage Policies
+        {user?.role === "admin" ? (
+          <>
+            <Link to="/admin/policies" className="app-header-link">
+              Manage Policies
+            </Link>
+            <Link to="/admin/questions" className="app-header-link">
+              Student Questions
+              {openCount > 0 && <span className="header-badge">{openCount}</span>}
+            </Link>
+          </>
+        ) : (
+          <Link to="/my-questions" className="app-header-link">
+            My Questions
           </Link>
         )}
         <span className="role-badge">{user?.role}</span>

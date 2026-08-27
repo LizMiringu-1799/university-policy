@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import threading
 
 from flask import current_app
@@ -135,6 +136,42 @@ def query(text, k, document_id=None):
         include=["documents", "metadatas", "distances"],
         **kwargs,
     )
+
+
+_WORD_RE = re.compile(r"[a-zA-Z]{4,}")
+
+
+def keyword_query(text, k, document_id=None):
+    """Chunks containing one of the query's significant words, ranked by how many they contain.
+
+    Dense embeddings capture topic, not tokens: a short, information-poor query like a
+    single place name embeds too generically for cosine similarity to rank the one chunk
+    that actually contains it inside RAG_TOP_K (confirmed against this index — a literal
+    "Nyeri" query ranked its only matching chunk 16th out of 237). This is the keyword half
+    of a small hybrid search, spliced into `retrieval.retrieve` so an exact term is not lost
+    to embedding noise. A plain case-insensitive scan rather than Chroma's `$contains`,
+    which is case-sensitive and would miss "Nyeri" against text stored as "NYERI".
+    """
+    terms = {w.lower() for w in _WORD_RE.findall(text)}
+    if not terms:
+        return []
+
+    kwargs = {}
+    if document_id is not None:
+        kwargs["where"] = {"document_id": document_id}
+    result = _get_collection().get(include=["documents", "metadatas"], **kwargs)
+
+    scored = []
+    for cid, doc, meta in zip(result["ids"], result["documents"], result["metadatas"]):
+        if not meta:
+            continue
+        lowered = doc.lower()
+        score = sum(1 for term in terms if term in lowered)
+        if score:
+            scored.append((score, cid, doc, meta))
+
+    scored.sort(key=lambda row: row[0], reverse=True)
+    return [(cid, doc, meta) for _score, cid, doc, meta in scored[:k]]
 
 
 def count():

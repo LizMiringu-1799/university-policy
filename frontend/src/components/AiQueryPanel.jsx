@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
-import { queriesApi } from "../api/client.js";
+import { queriesApi, escalationsApi } from "../api/client.js";
 import Alert from "./Alert.jsx";
 import Button from "./Button.jsx";
 import TextField from "./TextField.jsx";
@@ -85,9 +85,13 @@ export default function AiQueryPanel({
 }) {
   const { token } = useAuth();
   const [question, setQuestion] = useState("");
+  const [askedQuestion, setAskedQuestion] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // null | "sending" | "sent" | "error" — tracks the handoff to an admin for the
+  // question currently shown, whether triggered automatically or by the button below.
+  const [escalation, setEscalation] = useState(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -96,13 +100,40 @@ export default function AiQueryPanel({
 
     setError("");
     setResult(null);
+    setEscalation(null);
+    setAskedQuestion(asked);
     setLoading(true);
     try {
-      setResult(await queriesApi.ask(asked, token, documentId));
+      const data = await queriesApi.ask(asked, token, documentId);
+      setResult(data);
+      if (!data.answered) {
+        // The policies don't cover this, so route it to an admin without making the
+        // student ask twice for something the system already knows it can't answer.
+        sendToAdmin(asked, data, "unanswered");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function sendToAdmin(asked, data, reason) {
+    setEscalation("sending");
+    try {
+      await escalationsApi.create(
+        {
+          question: asked,
+          reason,
+          document_id: documentId,
+          system_answer_md: data.answer_md,
+          system_confidence: data.confidence,
+        },
+        token
+      );
+      setEscalation("sent");
+    } catch {
+      setEscalation("error");
     }
   }
 
@@ -161,6 +192,37 @@ export default function AiQueryPanel({
               <span className="ai-unanswered">not covered by the indexed policies</span>
             )}
           </div>
+
+          {result.answered ? (
+            <div className="ai-escalation">
+              {escalation === "sent" ? (
+                <span className="ai-escalation-status">Sent to an admin — check back for their reply.</span>
+              ) : (
+                <Button
+                  variant="secondary"
+                  disabled={escalation === "sending"}
+                  onClick={() => sendToAdmin(askedQuestion, result, "clarification")}
+                >
+                  {escalation === "sending" ? "Sending..." : "Request clarification from admin"}
+                </Button>
+              )}
+              {escalation === "error" && <span className="field-error">could not reach an admin, try again</span>}
+            </div>
+          ) : (
+            <div className="ai-escalation">
+              {escalation === "sending" && <span className="ai-escalation-status">Forwarding to an admin...</span>}
+              {escalation === "sent" && (
+                <span className="ai-escalation-status">
+                  This wasn't in the indexed policies, so it's been sent to an admin — check back for their reply.
+                </span>
+              )}
+              {escalation === "error" && (
+                <span className="field-error">
+                  couldn't reach an admin automatically — try asking again
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </Container>

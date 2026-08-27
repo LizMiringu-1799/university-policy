@@ -3,7 +3,9 @@ import LoginPage from "./pages/LoginPage.jsx";
 import RegisterPage from "./pages/RegisterPage.jsx";
 import PolicyLibraryPage from "./pages/PolicyLibraryPage.jsx";
 import PolicyReaderPage from "./pages/PolicyReaderPage.jsx";
+import MyQuestionsPage from "./pages/MyQuestionsPage.jsx";
 import AdminPoliciesPage from "./pages/admin/AdminPoliciesPage.jsx";
+import AdminEscalationsPage from "./pages/admin/AdminEscalationsPage.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 
@@ -31,10 +33,26 @@ export default function App() {
           }
         />
         <Route
+          path="/my-questions"
+          element={
+            <ProtectedRoute>
+              <MyQuestionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/admin/policies"
           element={
             <ProtectedRoute role="admin">
               <AdminPoliciesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/questions"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminEscalationsPage />
             </ProtectedRoute>
           }
         />

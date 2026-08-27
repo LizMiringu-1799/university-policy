@@ -43,11 +43,15 @@ def create_app(config_class=Config):
     from app.routes.documents import documents_bp
     from app.routes.admin_documents import admin_documents_bp
     from app.routes.queries import queries_bp
+    from app.routes.escalations import escalations_bp
+    from app.routes.admin_escalations import admin_escalations_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(documents_bp)
     app.register_blueprint(admin_documents_bp)
     app.register_blueprint(queries_bp)
+    app.register_blueprint(escalations_bp)
+    app.register_blueprint(admin_escalations_bp)
 
     from app.cli import register_cli
     from app.rag import ingest

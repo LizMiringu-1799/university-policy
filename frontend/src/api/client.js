@@ -59,6 +59,18 @@ export const queriesApi = {
     request("/ask", { method: "POST", body: { question, document_id: documentId }, token }),
 };
 
+export const escalationsApi = {
+  create: (payload, token) => request("/escalations", { method: "POST", body: payload, token }),
+  mine: (token) => request("/escalations/mine", { token }),
+};
+
+export const adminEscalationsApi = {
+  list: (params, token) => request(`/admin/escalations${toQueryString(params)}`, { token }),
+  openCount: (token) => request("/admin/escalations/open-count", { token }),
+  respond: (id, adminResponse, token) =>
+    request(`/admin/escalations/${id}/respond`, { method: "POST", body: { admin_response: adminResponse }, token }),
+};
+
 export const adminDocumentsApi = {
   create: (formData, token) => request("/admin/documents", { method: "POST", body: formData, token }),
   addVersion: (id, formData, token) =>

@@ -278,6 +278,21 @@ h1 {
   text-decoration: underline;
 }
 
+.header-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-error);
+  color: var(--color-bg);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
 .role-badge {
   display: inline-block;
   background: var(--color-primary-light);
@@ -601,6 +616,94 @@ h1 {
   color: var(--color-error);
 }
 
+.escalation-open {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  color: var(--color-accent-hover);
+}
+
+.escalation-resolved {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.escalation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.escalation-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.escalation-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.escalation-date,
+.escalation-reason {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.escalation-meta {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+}
+
+.escalation-question {
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.escalation-system-answer,
+.escalation-admin-response {
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.escalation-system-answer h4,
+.escalation-admin-response h4 {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.escalation-system-answer p,
+.escalation-admin-response p {
+  margin: 0;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.escalation-reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.escalation-reply-form textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
 .index-cell {
   display: flex;
   flex-direction: column;
@@ -720,6 +823,18 @@ h1 {
 
 .ai-unanswered {
   color: var(--color-accent-hover);
+}
+
+.ai-escalation {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-escalation-status {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 /* Theme toggle */

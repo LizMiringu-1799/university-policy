@@ -2,6 +2,29 @@ from flask import current_app
 
 from app.rag import store
 
+# A literal term match is a stronger signal than any cosine similarity, so keyword hits
+# are scored above the range vector search reports (which stays below 1.0 in practice).
+KEYWORD_SIMILARITY = 0.99
+
+# Capped independent of RAG_TOP_K: a common word can match many chunks, and this fallback
+# only needs to rescue the one the vector search missed, not flood the prompt.
+KEYWORD_FALLBACK_LIMIT = 3
+
+
+def _to_hit(cid, text, meta, similarity, rank):
+    return {
+        "chunk_id": cid,
+        "document_id": meta["document_id"],
+        "version_id": meta["version_id"],
+        "version_number": meta["version_number"],
+        "title": meta["title"],
+        "category": meta["category"],
+        "page": meta["page"],
+        "text": text,
+        "similarity": similarity,
+        "rank": rank,
+    }
+
 
 def retrieve(query_text, k=None, query_log_id=None, document_id=None):
     """Top-k policy chunks for a natural-language query, best match first.
@@ -30,6 +53,7 @@ def retrieve(query_text, k=None, query_log_id=None, document_id=None):
     distances = result["distances"][0]
 
     hits = []
+    seen = set()
     for cid, text, meta, distance in zip(ids, documents, metadatas, distances):
         # Chroma deletes metadata synchronously but its vector index lags behind, so a
         # just-archived document's chunks can still come back from the nearest-neighbour
@@ -40,21 +64,21 @@ def retrieve(query_text, k=None, query_log_id=None, document_id=None):
         if not meta:
             continue
 
-        hits.append(
-            {
-                "chunk_id": cid,
-                "document_id": meta["document_id"],
-                "version_id": meta["version_id"],
-                "version_number": meta["version_number"],
-                "title": meta["title"],
-                "category": meta["category"],
-                "page": meta["page"],
-                "text": text,
-                # Chroma reports cosine distance; the collection pins the cosine space so
-                # this is 1 - cosine similarity. Clamped because floating point can put an
-                # exact match a hair outside the range.
-                "similarity": max(0.0, min(1.0, 1.0 - distance)),
-                "rank": len(hits) + 1,
-            }
-        )
+        # Chroma reports cosine distance; the collection pins the cosine space so this is
+        # 1 - cosine similarity. Clamped because floating point can put an exact match a
+        # hair outside the range.
+        similarity = max(0.0, min(1.0, 1.0 - distance))
+        hits.append(_to_hit(cid, text, meta, similarity, len(hits) + 1))
+        seen.add(cid)
+
+    # Keyword fallback: dense embeddings rank on topic, not tokens, so an exact term (a
+    # place name, a policy code) can miss the vector top-k entirely even though a chunk
+    # contains it verbatim. Splice in anything the substring scan finds that vector search
+    # didn't already surface.
+    for cid, text, meta in store.keyword_query(query_text, KEYWORD_FALLBACK_LIMIT, document_id=document_id):
+        if cid in seen:
+            continue
+        hits.append(_to_hit(cid, text, meta, KEYWORD_SIMILARITY, len(hits) + 1))
+        seen.add(cid)
+
     return hits

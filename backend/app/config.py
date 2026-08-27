@@ -57,4 +57,13 @@ class Config:
     LLM_TIMEOUT_SECONDS = float(os.environ.get("LLM_TIMEOUT_SECONDS", 60))
     # Cited-chunk mean similarity below this marks a query unanswered even when the model
     # claims it answered. See docs/design-rag.md §9.
-    RAG_CONFIDENCE_THRESHOLD = float(os.environ.get("RAG_CONFIDENCE_THRESHOLD", 0.35))
+    #
+    # 0.35 was an untuned guess that rejected real answers to short queries: a single
+    # content word scores lower on cosine similarity against a multi-sentence chunk than a
+    # full question does, even against the right chunk ("recognition", "collusion", and
+    # "penalty" all returned correct, on-policy answers at 0.26-0.32). Every genuinely
+    # uncovered query tested came back with zero citations regardless of this number, since
+    # the model self-gates before this check runs — so 0.35 was discarding good short-query
+    # answers without actually catching anything. Lowered to clear the observed noise floor
+    # (~0.18) without clipping legitimate matches.
+    RAG_CONFIDENCE_THRESHOLD = float(os.environ.get("RAG_CONFIDENCE_THRESHOLD", 0.2))
