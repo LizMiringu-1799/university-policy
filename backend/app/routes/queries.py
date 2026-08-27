@@ -11,6 +11,12 @@ queries_bp = Blueprint("queries", __name__, url_prefix="/api/v1")
 @queries_bp.post("/ask")
 @jwt_required()
 def ask():
+    """Answer a natural-language policy question via the RAG pipeline (objective 2).
+
+    Body: {question, document_id?}. document_id scopes retrieval to one policy, which is
+    what the reader page's panel sends; omitted, it searches the whole corpus. Delegates
+    everything past validation to answer_question(), which retrieves, calls the LLM, and
+    returns the full AnswerResult (answer_md, citations, confidence, answered)."""
     data = request.get_json(silent=True) or {}
 
     question = (data.get("question") or "").strip()

@@ -7,6 +7,11 @@ import AppHeader from "../components/AppHeader.jsx";
 import Alert from "../components/Alert.jsx";
 import AiQueryPanel from "../components/AiQueryPanel.jsx";
 
+/**
+ * The student homepage: a corpus-wide AiQueryPanel above a searchable/filterable list
+ * of policies. Title search and category are debounced 250ms before hitting the API so
+ * typing doesn't fire a request per keystroke.
+ */
 export default function PolicyLibraryPage() {
   const { token } = useAuth();
   const [items, setItems] = useState([]);

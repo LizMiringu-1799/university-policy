@@ -4,6 +4,11 @@ from app.extensions import db
 
 
 class Document(db.Model):
+    """One policy (e.g. "Anti-Plagiarism Policy"): stable identity and metadata across
+    however many versions get uploaded. The actual PDF content lives on DocumentVersion;
+    `current_version` points at whichever one is live, so archiving/replacing a version
+    never requires rewriting the document's own id or history."""
+
     __tablename__ = "documents"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -26,6 +31,9 @@ class Document(db.Model):
     current_version = db.relationship("DocumentVersion", foreign_keys=[current_version_id], post_update=True)
 
     def to_summary_dict(self):
+        """List-view JSON shape: document metadata plus the current version's stats,
+        without the full version history. Used by the library listing and as the base
+        for to_detail_dict()."""
         return {
             "id": self.id,
             "title": self.title,
@@ -39,12 +47,18 @@ class Document(db.Model):
         }
 
     def to_detail_dict(self):
+        """Single-document JSON shape: to_summary_dict() plus every version's history,
+        for the admin detail view and the reader page."""
         data = self.to_summary_dict()
         data["versions"] = [v.to_dict() for v in self.versions]
         return data
 
 
 class DocumentVersion(db.Model):
+    """One uploaded PDF for a Document: its file on disk, hash, page count, and where it
+    stands in the ingestion pipeline (index_status/chunk_count/index_error). Old versions
+    are kept for audit history even after a newer one becomes current."""
+
     __tablename__ = "document_versions"
     __table_args__ = (db.UniqueConstraint("document_id", "version_number", name="uq_doc_version"),)
 
@@ -68,6 +82,7 @@ class DocumentVersion(db.Model):
     uploader = db.relationship("User")
 
     def to_dict(self):
+        """JSON shape for one version, as it appears in a document's version history."""
         return {
             "id": self.id,
             "version_number": self.version_number,

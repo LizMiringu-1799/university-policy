@@ -10,6 +10,8 @@ documents_bp = Blueprint("documents", __name__, url_prefix="/api/v1/documents")
 
 
 def _base_query():
+    """Document.query, restricted to active documents for non-admins. Every read route
+    below starts from this so archived policies stay invisible to students by default."""
     query = Document.query
     if get_jwt().get("role") != "admin":
         query = query.filter_by(status="active")
@@ -19,6 +21,8 @@ def _base_query():
 @documents_bp.get("")
 @jwt_required()
 def list_documents():
+    """Paginated, filterable document list (the policy library and the admin table).
+    Supports title search (`q`), `category`, and — admin only — `status`."""
     query = _base_query()
 
     q = request.args.get("q", "").strip()
@@ -52,6 +56,7 @@ def list_documents():
 @documents_bp.get("/categories")
 @jwt_required()
 def list_categories():
+    """Distinct categories across active documents, for the library's filter dropdown."""
     rows = Document.query.filter_by(status="active").with_entities(Document.category).distinct().all()
     return jsonify({"categories": sorted({row[0] for row in rows})})
 
@@ -59,6 +64,7 @@ def list_categories():
 @documents_bp.get("/<int:document_id>")
 @jwt_required()
 def get_document(document_id):
+    """One document's full detail, including its version history."""
     document = _base_query().filter_by(id=document_id).first()
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)
@@ -68,6 +74,9 @@ def get_document(document_id):
 @documents_bp.get("/<int:document_id>/file")
 @jwt_required()
 def get_document_file(document_id):
+    """Stream the PDF itself, for the in-browser reader. `?version=N` fetches an old
+    version instead of the current one; `conditional=True` lets the browser range-request
+    and cache it rather than re-downloading the whole file on every page jump."""
     document = _base_query().filter_by(id=document_id).first()
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)

@@ -20,6 +20,9 @@ def console_safe(text):
 
 
 def register_cli(app):
+    """Register the project's `flask <command>` commands: seed-admin, seed-demo, reindex,
+    and search. Called once from create_app()."""
+
     @app.cli.command("seed-admin")
     @click.option("--name", prompt=True)
     @click.option("--email", prompt=True)

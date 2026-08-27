@@ -26,6 +26,13 @@ def _configure_logging():
 
 
 def create_app(config_class=Config):
+    """Application factory: builds and fully wires one Flask app instance.
+
+    Initializes the extensions (db, migrate, jwt, bcrypt, CORS), registers every route
+    blueprint and the CLI commands, and starts the background ingestion worker. Called
+    once per process by run.py, and once per test by the test suite with a different
+    config_class, which is the reason this is a factory rather than a module-level app.
+    """
     _configure_logging()
 
     app = Flask(__name__)
@@ -59,16 +66,21 @@ def create_app(config_class=Config):
     register_cli(app)
     ingest.init_app(app)
 
+    # flask-jwt-extended callbacks: without these it returns its own default JSON shape
+    # on auth failure instead of the app's standard {error: {code, message}} envelope.
     @jwt.unauthorized_loader
     def handle_missing_token(reason):
+        """No Authorization header/token was presented at all."""
         return error_response("unauthorized", "authentication required", 401)
 
     @jwt.invalid_token_loader
     def handle_invalid_token(reason):
+        """A token was presented but failed to decode/verify (bad signature, malformed)."""
         return error_response("unauthorized", "invalid or expired token", 401)
 
     @jwt.expired_token_loader
     def handle_expired_token(jwt_header, jwt_payload):
+        """A token decoded fine but its exp claim has passed."""
         return error_response("unauthorized", "invalid or expired token", 401)
 
     return app

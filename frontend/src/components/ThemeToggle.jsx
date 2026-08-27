@@ -1,5 +1,7 @@
 import { useTheme } from "../hooks/useTheme.js";
 
+/** Floating sun/moon button that flips the app between light and dark theme. Mounted
+ * once in App.jsx so it's visible on every page. */
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === "dark";

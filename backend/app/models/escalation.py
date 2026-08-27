@@ -32,6 +32,9 @@ class Escalation(db.Model):
     document = db.relationship("Document")
 
     def to_dict(self):
+        """Public JSON shape for one escalation, used by both the student and admin
+        endpoints. Includes the system's own answer/confidence alongside the admin's
+        reply so either side can see the full history of a question in one payload."""
         return {
             "id": self.id,
             "student": {"id": self.student.id, "name": self.student.name} if self.student else None,

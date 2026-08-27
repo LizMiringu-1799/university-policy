@@ -14,6 +14,9 @@ admin_documents_bp = Blueprint("admin_documents", __name__, url_prefix="/api/v1/
 @admin_documents_bp.post("")
 @role_required("admin")
 def create_document():
+    """Create a new policy document and its first version in one call (multipart form:
+    title, category, file). Saves the PDF, creates version 1, points the document at it,
+    and enqueues it for background indexing before returning."""
     title = (request.form.get("title") or "").strip()
     category = (request.form.get("category") or "").strip()
     if not title or len(title) > 200:
@@ -52,6 +55,9 @@ def create_document():
 @admin_documents_bp.post("/<int:document_id>/versions")
 @role_required("admin")
 def add_version(document_id):
+    """Replace a document's content: upload a new PDF as the next version number, make
+    it current, and re-index. The old version's chunks stay searchable until the new
+    ones finish embedding, so there's no answerability gap during the swap."""
     document = Document.query.get(document_id)
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)
@@ -87,6 +93,12 @@ def add_version(document_id):
 @admin_documents_bp.patch("/<int:document_id>")
 @role_required("admin")
 def update_document(document_id):
+    """Partial update of title/category/status. Any subset of the three may be sent.
+
+    Archiving synchronously strips the document from the Chroma index (so it stops
+    answering questions immediately rather than on the next reindex), and restoring or
+    editing embedded fields (title/category, which are baked into every chunk's text)
+    re-enqueues indexing so the vectors catch up."""
     document = Document.query.get(document_id)
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)
@@ -145,6 +157,8 @@ def update_document(document_id):
 @admin_documents_bp.get("/<int:document_id>/index-status")
 @role_required("admin")
 def get_index_status(document_id):
+    """Current version's indexing state, polled by the admin table while a document is
+    pending/indexing, and used to fetch the full error message behind a "failed" badge."""
     document = Document.query.get(document_id)
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)
@@ -167,6 +181,8 @@ def get_index_status(document_id):
 @admin_documents_bp.post("/<int:document_id>/reindex")
 @role_required("admin")
 def reindex_document(document_id):
+    """Manually re-enqueue the current version for indexing — the recovery action for a
+    document stuck at "failed" (e.g. after fixing and re-uploading a scanned PDF)."""
     document = Document.query.get(document_id)
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)

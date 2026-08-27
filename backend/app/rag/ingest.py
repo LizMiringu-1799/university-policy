@@ -33,6 +33,9 @@ def init_app(app):
 
 
 def _bootstrap(app):
+    """One-time setup, guarded by _bootstrap_lock/_bootstrapped so concurrent first
+    requests only do this once: requeue anything left mid-flight, then start the worker
+    thread that drains _queue for the rest of the process's life."""
     global _bootstrapped
     with _bootstrap_lock:
         if _bootstrapped:
@@ -69,6 +72,9 @@ def _recover_orphans(app):
 
 
 def _run(app):
+    """The worker thread's body: block on _queue and index one version at a time for the
+    life of the process. Runs forever; ingestion is serialized this way because Chroma's
+    persistent client and the CPU-bound embedding model don't tolerate concurrent writers."""
     while True:
         version_id = _queue.get()
         try:
@@ -92,6 +98,8 @@ def enqueue(version):
 
 
 def enqueue_current(document):
+    """enqueue() a document's current version, if it has one. No-op for a document with
+    no versions yet (shouldn't happen in practice, but upload order isn't enforced here)."""
     if document.current_version:
         enqueue(document.current_version)
 
@@ -164,6 +172,8 @@ def index_version(version_id):
 
 
 def _mark_failed(version, message):
+    """Record an ingestion failure on the version row, truncated to fit the column, and
+    clear chunk_count so a stale count from a previous successful version doesn't linger."""
     version.index_status = "failed"
     version.index_error = message[:500]
     version.chunk_count = None

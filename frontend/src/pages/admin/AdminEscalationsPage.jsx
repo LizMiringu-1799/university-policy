@@ -6,6 +6,12 @@ import Alert from "../../components/Alert.jsx";
 import Button from "../../components/Button.jsx";
 import { formatDate } from "../../utils/date.js";
 
+/**
+ * One student question, with the full context an admin needs to answer it: who asked,
+ * from which policy's reader page (if any), what the RAG system already told them, and
+ * a reply box that resolves the escalation on submit. `onResolved` re-runs the parent's
+ * fetch so a just-answered row moves out of the open queue immediately.
+ */
 function EscalationRow({ item, onResolved }) {
   const { token } = useAuth();
   const [response, setResponse] = useState(item.admin_response || "");
@@ -78,6 +84,11 @@ function EscalationRow({ item, onResolved }) {
   );
 }
 
+/**
+ * Admin's queue of student questions handed off from the RAG assistant. Defaults to
+ * the "open" filter, since that's the actionable work; "resolved" and "All" are there
+ * for reference. This is also what the header badge count (AppHeader) is counting.
+ */
 export default function AdminEscalationsPage() {
   const { token } = useAuth();
   const [items, setItems] = useState([]);

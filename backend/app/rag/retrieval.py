@@ -12,6 +12,9 @@ KEYWORD_FALLBACK_LIMIT = 3
 
 
 def _to_hit(cid, text, meta, similarity, rank):
+    """Build one retrieval result dict from a chunk's id, text, and Chroma metadata.
+    Shared by both the vector-search and keyword-fallback branches of retrieve() so the
+    two produce identically-shaped hits."""
     return {
         "chunk_id": cid,
         "document_id": meta["document_id"],

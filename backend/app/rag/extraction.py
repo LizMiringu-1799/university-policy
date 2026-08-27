@@ -22,11 +22,15 @@ class ExtractionError(Exception):
 
 
 def normalize(text):
+    """Clean one page's raw pypdf text: rejoin hyphen-broken words, strip junk glyphs
+    and control characters, and collapse whitespace to single spaces."""
     text = JUNK.sub(" ", text or "")
     return WHITESPACE.sub(" ", HYPHEN_BREAK.sub(r"\1\2", text)).strip()
 
 
 def _has_images(reader, sample_pages=3):
+    """Whether the first few pages carry embedded images, used only to word the
+    ExtractionError message (scanned PDF vs. genuinely blank/malformed one)."""
     for page in reader.pages[:sample_pages]:
         try:
             if len(page.images):

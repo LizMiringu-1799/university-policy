@@ -9,6 +9,11 @@ import TextField from "./TextField.jsx";
 // Splits an answer on its [n] citation markers so they can be rendered as chips.
 const MARKER = /\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g;
 
+/**
+ * Render one line of answer text with its [n] citation markers replaced by superscript
+ * chips: a clickable Link (with page number, styled `.cite`) when `n` resolves to a
+ * retrieved source in `citedPages`, or a plain unlinked marker otherwise.
+ */
 function renderLine(line, citedPages) {
   const parts = [];
   let cursor = 0;
@@ -43,6 +48,8 @@ function renderLine(line, citedPages) {
 
 // The answer is light markdown: paragraphs plus "- " bullets. Rendering those two cases
 // directly avoids pulling in a markdown dependency for output we control the shape of.
+/** Render the LLM's answer_md as paragraphs and "- "/"* " bullet lists, with citation
+ * markers on each line turned into chips via renderLine(). */
 function AnswerBody({ text, citedPages }) {
   const blocks = [];
   let bullets = [];
@@ -75,6 +82,13 @@ function AnswerBody({ text, citedPages }) {
   return blocks;
 }
 
+/**
+ * The "ask a question about policy" widget, reused corpus-wide on the library page and
+ * scoped to one policy (via `documentId`) on the reader page. Submits to POST /ask, then
+ * renders the cited answer with clickable source links, and drives the human-escalation
+ * handoff: automatically forwards the question to an admin when the system can't answer
+ * it, and offers a "Request clarification" button when it can.
+ */
 export default function AiQueryPanel({
   as: Container = "aside",
   className = "ai-panel",
@@ -93,6 +107,7 @@ export default function AiQueryPanel({
   // question currently shown, whether triggered automatically or by the button below.
   const [escalation, setEscalation] = useState(null);
 
+  /** Ask the question, show the answer, and auto-escalate to an admin if unanswered. */
   async function handleSubmit(e) {
     e.preventDefault();
     const asked = question.trim();
@@ -118,6 +133,8 @@ export default function AiQueryPanel({
     }
   }
 
+  /** POST an escalation for the current question/answer pair. `reason` is "unanswered"
+   * (fired automatically) or "clarification" (fired by the button below). */
   async function sendToAdmin(asked, data, reason) {
     setEscalation("sending");
     try {

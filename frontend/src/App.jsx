@@ -9,6 +9,10 @@ import AdminEscalationsPage from "./pages/admin/AdminEscalationsPage.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 
+/**
+ * Top-level route table. `/` and `/register` are public; everything else requires a
+ * session via ProtectedRoute, and the `/admin/*` routes additionally require role="admin".
+ */
 export default function App() {
   return (
     <>

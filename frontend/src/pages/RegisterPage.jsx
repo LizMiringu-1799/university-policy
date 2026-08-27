@@ -6,6 +6,8 @@ import TextField from "../components/TextField.jsx";
 import Button from "../components/Button.jsx";
 import Alert from "../components/Alert.jsx";
 
+/** Self-service signup form. Always creates a student account (see backend routes/auth.py);
+ * on success, logs the user in immediately and navigates to the policy library. */
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();

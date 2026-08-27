@@ -15,6 +15,7 @@ class User(db.Model):
     last_login_at = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
+        """Public JSON shape for this user. Excludes password_hash deliberately."""
         return {
             "id": self.id,
             "name": self.name,

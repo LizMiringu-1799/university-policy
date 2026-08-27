@@ -4,6 +4,8 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def validate_registration(data):
+    """Check a registration payload's name/email/password. Returns an error string, or
+    None when the payload is valid. Field limits mirror the users table's column sizes."""
     name = (data.get("name") or "").strip()
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
@@ -18,6 +20,9 @@ def validate_registration(data):
 
 
 def validate_login(data):
+    """Check a login payload has both fields present. Returns an error string, or None
+    when valid. Deliberately doesn't validate email format or password strength here —
+    a malformed login is just a wrong-credentials 401, not a 400."""
     email = (data.get("email") or "").strip()
     password = data.get("password") or ""
     if not email or not password:

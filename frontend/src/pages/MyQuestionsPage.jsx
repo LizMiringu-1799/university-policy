@@ -5,6 +5,8 @@ import AppHeader from "../components/AppHeader.jsx";
 import Alert from "../components/Alert.jsx";
 import { formatDate } from "../utils/date.js";
 
+/** One escalation from the student's point of view: their question, what the system
+ * said (if anything), and the admin's reply once it exists. */
 function QuestionCard({ item }) {
   return (
     <div className="escalation-card">
@@ -36,6 +38,11 @@ function QuestionCard({ item }) {
   );
 }
 
+/**
+ * Student-facing page listing every question they've escalated to an admin (auto-sent
+ * on an unanswered AI query, or manually via "Request clarification"), so they have
+ * somewhere to check back for a reply — there's no push notification for this yet.
+ */
 export default function MyQuestionsPage() {
   const { token } = useAuth();
   const [items, setItems] = useState([]);

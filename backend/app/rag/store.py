@@ -72,6 +72,8 @@ def reset_client():
 
 
 def chunk_id(document_id, version_id, chunk_index):
+    """The Chroma document id for one chunk. Deterministic and human-readable, so
+    delete-by-id and log lines don't need a separate lookup table."""
     return f"doc{document_id}_v{version_id}_c{chunk_index}"
 
 
@@ -175,4 +177,5 @@ def keyword_query(text, k, document_id=None):
 
 
 def count():
+    """Total chunks currently in the index, across every document."""
     return _get_collection().count()

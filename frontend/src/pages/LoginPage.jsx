@@ -6,6 +6,8 @@ import TextField from "../components/TextField.jsx";
 import Button from "../components/Button.jsx";
 import Alert from "../components/Alert.jsx";
 
+/** Sign-in form. On success, AuthContext.login() persists the session and this
+ * navigates to the policy library. */
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();

@@ -6,6 +6,8 @@ import Alert from "../../components/Alert.jsx";
 import Button from "../../components/Button.jsx";
 import TextField from "../../components/TextField.jsx";
 
+/** Form for creating a brand-new policy document (title, category, first-version PDF).
+ * Resets itself and calls `onCreated` on success so the parent table refreshes. */
 function UploadForm({ onCreated }) {
   const { token } = useAuth();
   const [title, setTitle] = useState("");
@@ -71,6 +73,8 @@ function UploadForm({ onCreated }) {
   );
 }
 
+/** The "Index" column: a status badge plus chunk count when indexed, or a "Why?" button
+ * that lazily fetches the failure reason (onExplain) when indexing failed. */
 function IndexCell({ doc, indexError, onExplain }) {
   if (!doc.index_status) return <span className="index-chunks">no version</span>;
   // Archiving deletes the chunks but leaves index_status recording the last attempt, so
@@ -93,6 +97,11 @@ function IndexCell({ doc, indexError, onExplain }) {
   );
 }
 
+/**
+ * One row in the admin policy table, with every per-document action: inline
+ * title/category edit, replace-file (new version), reindex, and archive/restore.
+ * `onChanged` re-fetches the parent list after any of them succeeds.
+ */
 function AdminPolicyRow({ doc, onChanged }) {
   const { token } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -102,6 +111,7 @@ function AdminPolicyRow({ doc, onChanged }) {
   const [indexError, setIndexError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  /** Save the inline title/category edit. */
   async function saveMetadata() {
     setError("");
     setBusy(true);
@@ -116,6 +126,7 @@ function AdminPolicyRow({ doc, onChanged }) {
     }
   }
 
+  /** Flip between active and archived; the label on the button reflects which way it'll go. */
   async function toggleArchive() {
     setError("");
     setBusy(true);
@@ -129,6 +140,7 @@ function AdminPolicyRow({ doc, onChanged }) {
     }
   }
 
+  /** Fetch the full index_error text for a failed version, on demand (the "Why?" button). */
   async function explainIndexFailure() {
     try {
       const status = await adminDocumentsApi.indexStatus(doc.id, token);
@@ -138,6 +150,7 @@ function AdminPolicyRow({ doc, onChanged }) {
     }
   }
 
+  /** Re-run ingestion for the current version — the recovery action for a failed index. */
   async function reindex() {
     setError("");
     setIndexError("");
@@ -152,6 +165,7 @@ function AdminPolicyRow({ doc, onChanged }) {
     }
   }
 
+  /** Upload a new PDF as the next version, from the hidden file input behind "Replace file". */
   async function replaceVersion(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -228,6 +242,11 @@ function AdminPolicyRow({ doc, onChanged }) {
   );
 }
 
+/**
+ * Admin document-management screen: upload form plus a filterable table of every
+ * document with its lifecycle actions (AdminPolicyRow). Polls while any active document
+ * is still indexing, so a row's status updates without a manual refresh.
+ */
 export default function AdminPoliciesPage() {
   const { token } = useAuth();
   const [items, setItems] = useState([]);

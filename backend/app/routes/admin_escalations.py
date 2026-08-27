@@ -14,6 +14,8 @@ admin_escalations_bp = Blueprint("admin_escalations", __name__, url_prefix="/api
 @admin_escalations_bp.get("")
 @role_required("admin")
 def list_escalations():
+    """The admin queue of student questions. `?status=open|resolved` filters; omitted
+    returns everything, open first."""
     status = request.args.get("status")
     query = Escalation.query
     if status:
@@ -38,6 +40,10 @@ def open_count():
 @admin_escalations_bp.post("/<int:escalation_id>/respond")
 @role_required("admin")
 def respond(escalation_id):
+    """Record an admin's reply to one escalation and close it out.
+
+    Body: {admin_response}. Marks the escalation resolved and stamps who answered and
+    when, so the student's "My Questions" page can show both the reply and its provenance."""
     escalation = Escalation.query.get(escalation_id)
     if not escalation:
         raise ApiError("not_found", f"escalation {escalation_id} does not exist", 404)

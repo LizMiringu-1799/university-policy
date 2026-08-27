@@ -6,6 +6,12 @@ import Button from "./Button.jsx";
 
 const OPEN_COUNT_POLL_MS = 20000;
 
+/**
+ * Site header: brand link, role-appropriate nav (admin gets Manage Policies + Student
+ * Questions; everyone else gets My Questions), a role badge, and logout. For an admin,
+ * also polls the open-escalation count every OPEN_COUNT_POLL_MS and shows it as a badge
+ * on "Student Questions" so a new question is visible from anywhere in the admin UI.
+ */
 export default function AppHeader() {
   const { user, token, logout } = useAuth();
   const [openCount, setOpenCount] = useState(0);

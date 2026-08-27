@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+/** Open-eye glyph shown on a password field when its text is hidden (click to reveal). */
 function EyeIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -9,6 +10,7 @@ function EyeIcon() {
   );
 }
 
+/** Crossed-out-eye glyph shown on a password field when its text is visible (click to hide). */
 function EyeOffIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -20,6 +22,11 @@ function EyeOffIcon() {
   );
 }
 
+/**
+ * Labelled input with an inline error slot. For `type="password"`, adds a show/hide
+ * toggle rather than making the browser's native reveal the only option. Any other
+ * input prop (value, onChange, required, ...) passes straight through.
+ */
 export default function TextField({ label, id, error, type, ...props }) {
   const [visible, setVisible] = useState(false);
   const isPassword = type === "password";

@@ -11,6 +11,7 @@ CHUNK_SIZE = 1024 * 1024
 
 
 def validate_pdf_upload(file_storage):
+    """Reject a missing file or a non-PDF mimetype before anything is written to disk."""
     if not file_storage or not file_storage.filename:
         raise ApiError("validation_error", "a PDF file is required", 400)
     if file_storage.mimetype != "application/pdf":
@@ -18,7 +19,11 @@ def validate_pdf_upload(file_storage):
 
 
 def save_pdf_version(file_storage, document_id, version_number):
-    """Stream the upload to disk under PDF_STORAGE_DIR/{document_id}/v{n}.pdf, hashing as it writes."""
+    """Stream the upload to disk under PDF_STORAGE_DIR/{document_id}/v{n}.pdf, hashing as
+    it writes, then validate it opens as a real PDF and count its pages.
+
+    Returns (file_path, sha256_hex, page_count). Raises ApiError and deletes the file if
+    it does not parse as a PDF (a mimetype claim isn't proof of file contents)."""
     doc_dir = os.path.join(current_app.config["PDF_STORAGE_DIR"], str(document_id))
     os.makedirs(doc_dir, exist_ok=True)
     file_path = os.path.join(doc_dir, f"v{version_number}.pdf")

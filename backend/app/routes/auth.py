@@ -13,6 +13,9 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/v1/auth")
 
 @auth_bp.post("/register")
 def register():
+    """Self-service signup. Always creates a `student` account — admin/staff accounts are
+    provisioned separately via `flask seed-admin` / `seed-demo`, not through this route.
+    Returns the new user plus a JWT so the client is logged in immediately."""
     data = request.get_json(silent=True) or {}
     error = validate_registration(data)
     if error:
@@ -37,6 +40,8 @@ def register():
 
 @auth_bp.post("/login")
 def login():
+    """Verify email/password, stamp last_login_at, and issue a fresh JWT carrying the
+    user's role as a claim (which role_required() and _base_query() read downstream)."""
     data = request.get_json(silent=True) or {}
     error = validate_login(data)
     if error:
@@ -57,6 +62,8 @@ def login():
 @auth_bp.get("/me")
 @jwt_required()
 def me():
+    """The current user, resolved from the JWT. What AuthContext calls on page load to
+    turn a stored token back into a logged-in session."""
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     if not user:

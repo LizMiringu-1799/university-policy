@@ -75,6 +75,8 @@ _client = None
 
 
 def _get_client():
+    """Lazily construct and cache the OpenAI-compatible client for LLM_BASE_URL. Lazy so
+    a missing LLM_API_KEY only breaks answering, not every route in the app."""
     global _client
     if _client is None:
         api_key = current_app.config["LLM_API_KEY"]
@@ -104,6 +106,8 @@ def render_sources(hits):
 
 
 def _empty_result(question, reason):
+    """The AnswerResult shape for a question that never reached the LLM at all (blank
+    question, or nothing indexed to search)."""
     return {
         "log_id": None,
         "question": question,
@@ -196,6 +200,10 @@ def answer_question(question, k=None, document_id=None):
         sum(c["similarity"] for c in citations) / len(citations) if citations else None
     )
     threshold = current_app.config["RAG_CONFIDENCE_THRESHOLD"]
+    # Three independent gates, all required: the model's own judgment, at least one
+    # citation actually resolving to a retrieved chunk, and that chunk's similarity
+    # clearing the noise floor. See RAG_CONFIDENCE_THRESHOLD in config.py for why the
+    # third one is calibrated as low as it is.
     answered = bool(parsed.answered and citations and confidence >= threshold)
 
     return {

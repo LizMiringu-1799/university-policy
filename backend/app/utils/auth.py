@@ -6,6 +6,13 @@ from app.utils.errors import ApiError
 
 
 def role_required(*roles):
+    """Route decorator factory: 403s unless the caller's JWT role is one of `roles`.
+
+    Usage: @role_required("admin") above a Flask view function. Verifies the JWT itself
+    (so routes using this don't also need @jwt_required()), then checks the "role" claim
+    that auth.py embeds at login/register time.
+    """
+
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):

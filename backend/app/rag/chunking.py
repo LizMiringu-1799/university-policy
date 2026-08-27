@@ -7,6 +7,7 @@ SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
 
 
 def split_sentences(text):
+    """Split page text into sentences on SENTENCE_END, dropping any empty fragments."""
     return [s.strip() for s in SENTENCE_END.split(text) if s.strip()]
 
 

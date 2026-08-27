@@ -7,6 +7,12 @@ import AppHeader from "../components/AppHeader.jsx";
 import Alert from "../components/Alert.jsx";
 import AiQueryPanel from "../components/AiQueryPanel.jsx";
 
+/**
+ * Single-policy view: the PDF itself in an iframe (deep-linkable to a page via
+ * ?page=N, which citation links from AiQueryPanel use) alongside an AiQueryPanel
+ * scoped to just this document. Fetches the file as a blob rather than pointing the
+ * iframe straight at the API URL so the request carries the auth token.
+ */
 export default function PolicyReaderPage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
