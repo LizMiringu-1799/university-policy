@@ -6,7 +6,7 @@ from app.models.document import Document, DocumentVersion
 from app.rag import ingest, store
 from app.utils.auth import role_required
 from app.utils.errors import ApiError
-from app.utils.storage import validate_pdf_upload, save_pdf_version
+from app.utils.storage import validate_upload, save_version
 
 admin_documents_bp = Blueprint("admin_documents", __name__, url_prefix="/api/v1/admin/documents")
 
@@ -15,8 +15,9 @@ admin_documents_bp = Blueprint("admin_documents", __name__, url_prefix="/api/v1/
 @role_required("admin")
 def create_document():
     """Create a new policy document and its first version in one call (multipart form:
-    title, category, file). Saves the PDF, creates version 1, points the document at it,
-    and enqueues it for background indexing before returning."""
+    title, category, file). Accepts PDF, Word (.docx), plain text/markdown, and scanned
+    images (app.utils.filetypes) — saves the file, creates version 1, points the document
+    at it, and enqueues it for background indexing before returning."""
     title = (request.form.get("title") or "").strip()
     category = (request.form.get("category") or "").strip()
     if not title or len(title) > 200:
@@ -25,19 +26,20 @@ def create_document():
         raise ApiError("validation_error", "category is required and must be at most 100 characters", 400)
 
     file_storage = request.files.get("file")
-    validate_pdf_upload(file_storage)
+    file_type = validate_upload(file_storage)
 
     user_id = int(get_jwt_identity())
     document = Document(title=title, category=category, created_by=user_id)
     db.session.add(document)
     db.session.flush()  # assigns document.id without committing
 
-    file_path, file_sha256, page_count = save_pdf_version(file_storage, document.id, version_number=1)
+    file_path, file_sha256, page_count = save_version(file_storage, document.id, 1, file_type)
     version = DocumentVersion(
         document_id=document.id,
         version_number=1,
         file_path=file_path,
         file_sha256=file_sha256,
+        file_type=file_type,
         page_count=page_count,
         uploaded_by=user_id,
     )
@@ -55,25 +57,28 @@ def create_document():
 @admin_documents_bp.post("/<int:document_id>/versions")
 @role_required("admin")
 def add_version(document_id):
-    """Replace a document's content: upload a new PDF as the next version number, make
-    it current, and re-index. The old version's chunks stay searchable until the new
-    ones finish embedding, so there's no answerability gap during the swap."""
+    """Replace a document's content: upload a new file as the next version number, make
+    it current, and re-index. The new version doesn't have to be the same format as the
+    old one (a Word draft can be replaced by the signed PDF, say). The old version's
+    chunks stay searchable until the new ones finish embedding, so there's no
+    answerability gap during the swap."""
     document = Document.query.get(document_id)
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)
 
     file_storage = request.files.get("file")
-    validate_pdf_upload(file_storage)
+    file_type = validate_upload(file_storage)
 
     user_id = int(get_jwt_identity())
     next_version_number = (document.current_version.version_number if document.current_version else 0) + 1
 
-    file_path, file_sha256, page_count = save_pdf_version(file_storage, document.id, next_version_number)
+    file_path, file_sha256, page_count = save_version(file_storage, document.id, next_version_number, file_type)
     version = DocumentVersion(
         document_id=document.id,
         version_number=next_version_number,
         file_path=file_path,
         file_sha256=file_sha256,
+        file_type=file_type,
         page_count=page_count,
         uploaded_by=user_id,
     )

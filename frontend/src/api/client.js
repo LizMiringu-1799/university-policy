@@ -67,13 +67,30 @@ export const documentsApi = {
   categories: (token) => request("/documents/categories", { token }),
   detail: (id, token) => request(`/documents/${id}`, { token }),
   fileBlob: (id, token, version) => requestBlob(`/documents/${id}/file${toQueryString({ version })}`, { token }),
+  // Extracted, paginated text for formats the browser can't render natively (Word docs,
+  // plain text/markdown) — see document.viewer ("pdf" | "image" | "text").
+  text: (id, token, version) => request(`/documents/${id}/text${toQueryString({ version })}`, { token }),
 };
 
-// The RAG "ask a question" endpoint. Maps to routes/queries.py.
+// The RAG "ask a question" endpoint and the rating on its answers. Maps to routes/queries.py.
 export const queriesApi = {
   // documentId scopes the search to one policy; omit it to search the whole corpus.
-  ask: (question, token, documentId) =>
-    request("/ask", { method: "POST", body: { question, document_id: documentId }, token }),
+  // sessionId is a client-generated id per chat panel, logged so analytics can group
+  // one user's rephrasings of the same question.
+  ask: (question, token, documentId, sessionId) =>
+    request("/ask", {
+      method: "POST",
+      body: { question, document_id: documentId, session_id: sessionId },
+      token,
+    }),
+  // The requesting user's own chat history: every question they've asked the AI
+  // assistant, however it turned out. Distinct from escalationsApi.mine, which is only
+  // the subset handed off to an admin.
+  mine: (params, token) => request(`/queries/mine${toQueryString(params)}`, { token }),
+  // Thumbs up/down on the answer with the given log_id. Posting again replaces the
+  // earlier rating; leave `comment` out of the payload to keep a comment already sent.
+  feedback: (logId, payload, token) =>
+    request(`/queries/${logId}/feedback`, { method: "POST", body: payload, token }),
 };
 
 // Student side of the human-escalation feature: hand a question to an admin, and check
@@ -85,10 +102,31 @@ export const escalationsApi = {
 
 // Admin side of the same feature: work the queue and reply. Maps to routes/admin_escalations.py.
 export const adminEscalationsApi = {
+  // `params` supports both `status` (open|resolved) and `reason` (unanswered|clarification),
+  // the latter separating the queue into student-raised vs system-raised questions.
   list: (params, token) => request(`/admin/escalations${toQueryString(params)}`, { token }),
-  openCount: (token) => request("/admin/escalations/open-count", { token }),
+  // `params.reason` scopes the count to one of the two queues; omitted, it's the
+  // aggregate the header nav badge shows.
+  openCount: (token, params) => request(`/admin/escalations/open-count${toQueryString(params)}`, { token }),
   respond: (id, adminResponse, token) =>
     request(`/admin/escalations/${id}/respond`, { method: "POST", body: { admin_response: adminResponse }, token }),
+};
+
+// Every student/staff rating on a system answer, independent of escalation status.
+// Maps to routes/admin_ratings.py.
+export const adminRatingsApi = {
+  list: (params, token) => request(`/admin/ratings${toQueryString(params)}`, { token }),
+};
+
+// Read-only reporting on data objective 3 already logs (objective 5). Maps to
+// routes/admin_analytics.py.
+export const adminAnalyticsApi = {
+  // `params.from`/`params.to` (YYYY-MM-DD) scope the window; omitted, it's all history.
+  summary: (params, token) => request(`/admin/analytics/summary${toQueryString(params)}`, { token }),
+  // Every document that has ever been retrieved, most-retrieved first. No params.
+  documents: (token) => request("/admin/analytics/documents", { token }),
+  // Documents retrieved often but cited rarely, most-ignored first. `params.limit`.
+  ambiguous: (params, token) => request(`/admin/analytics/ambiguous${toQueryString(params)}`, { token }),
 };
 
 // Document lifecycle management: upload, replace a version, edit/archive/restore, and

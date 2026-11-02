@@ -57,9 +57,12 @@ def create_escalation():
 def list_mine():
     """The requesting student's own escalations, newest first, so they can check back
     for the admin's reply without needing a notification system."""
+    # id as a tiebreaker: created_at has second resolution, so two escalations raised in
+    # the same second (e.g. an auto-escalation right after the panel's answer) would
+    # otherwise sort arbitrarily against each other.
     items = (
         Escalation.query.filter_by(student_id=int(get_jwt_identity()))
-        .order_by(Escalation.created_at.desc())
+        .order_by(Escalation.created_at.desc(), Escalation.id.desc())
         .all()
     )
     return jsonify({"items": [e.to_dict() for e in items]})

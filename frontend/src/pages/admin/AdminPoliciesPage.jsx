@@ -5,9 +5,11 @@ import AppHeader from "../../components/AppHeader.jsx";
 import Alert from "../../components/Alert.jsx";
 import Button from "../../components/Button.jsx";
 import TextField from "../../components/TextField.jsx";
+import { ACCEPTED_EXTENSIONS } from "../../utils/fileTypes.js";
 
-/** Form for creating a brand-new policy document (title, category, first-version PDF).
- * Resets itself and calls `onCreated` on success so the parent table refreshes. */
+/** Form for creating a brand-new policy document (title, category, first-version file:
+ * PDF, Word, plain text/markdown, or a scanned image). Resets itself and calls
+ * `onCreated` on success so the parent table refreshes. */
 function UploadForm({ onCreated }) {
   const { token } = useAuth();
   const [title, setTitle] = useState("");
@@ -19,7 +21,7 @@ function UploadForm({ onCreated }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!file) {
-      setError("choose a PDF file");
+      setError("choose a file");
       return;
     }
     setError("");
@@ -56,11 +58,11 @@ function UploadForm({ onCreated }) {
           required
         />
         <div className="field">
-          <label htmlFor="new-file">PDF file</label>
+          <label htmlFor="new-file">Policy file</label>
           <input
             id="new-file"
             type="file"
-            accept="application/pdf"
+            accept={ACCEPTED_EXTENSIONS}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             required
           />
@@ -225,7 +227,7 @@ function AdminPolicyRow({ doc, onChanged }) {
             </Button>
             <label className="btn btn-secondary file-btn">
               Replace file
-              <input type="file" accept="application/pdf" onChange={replaceVersion} hidden />
+              <input type="file" accept={ACCEPTED_EXTENSIONS} onChange={replaceVersion} hidden />
             </label>
             {doc.status === "active" && (
               <Button variant="secondary" onClick={reindex} disabled={busy}>

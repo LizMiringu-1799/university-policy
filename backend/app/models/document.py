@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from app.extensions import db
+from app.utils import filetypes
 
 
 class Document(db.Model):
@@ -40,6 +41,11 @@ class Document(db.Model):
             "category": self.category,
             "status": self.status,
             "current_version": self.current_version.version_number if self.current_version else None,
+            "file_type": self.current_version.file_type if self.current_version else None,
+            # How the reader should display this document: "pdf", "image", or "text".
+            # Sent alongside file_type so the frontend doesn't need its own copy of the
+            # FILE_TYPES table just to make that one branch.
+            "viewer": filetypes.viewer_for(self.current_version.file_type) if self.current_version else None,
             "page_count": self.current_version.page_count if self.current_version else None,
             "index_status": self.current_version.index_status if self.current_version else None,
             "chunk_count": self.current_version.chunk_count if self.current_version else None,
@@ -55,9 +61,13 @@ class Document(db.Model):
 
 
 class DocumentVersion(db.Model):
-    """One uploaded PDF for a Document: its file on disk, hash, page count, and where it
+    """One uploaded file for a Document: its file on disk, hash, page count, and where it
     stands in the ingestion pipeline (index_status/chunk_count/index_error). Old versions
-    are kept for audit history even after a newer one becomes current."""
+    are kept for audit history even after a newer one becomes current.
+
+    `file_type` is one of app.utils.filetypes.FILE_TYPES's keys ("pdf", "docx", "text",
+    "image") and drives both how the reader displays the file and, for PDFs and images,
+    whether OCR is attempted during indexing."""
 
     __tablename__ = "document_versions"
     __table_args__ = (db.UniqueConstraint("document_id", "version_number", name="uq_doc_version"),)
@@ -67,6 +77,7 @@ class DocumentVersion(db.Model):
     version_number = db.Column(db.Integer, nullable=False)
     file_path = db.Column(db.String(500), nullable=False)
     file_sha256 = db.Column(db.String(64), nullable=False)
+    file_type = db.Column(db.String(10), nullable=False, default="pdf", server_default="pdf")
     page_count = db.Column(db.Integer)
     uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -86,6 +97,7 @@ class DocumentVersion(db.Model):
         return {
             "id": self.id,
             "version_number": self.version_number,
+            "file_type": self.file_type,
             "page_count": self.page_count,
             "uploaded_at": self.uploaded_at.isoformat() + "Z" if self.uploaded_at else None,
             "uploaded_by": self.uploader.name if self.uploader else None,

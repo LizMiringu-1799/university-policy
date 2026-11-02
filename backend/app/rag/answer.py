@@ -106,8 +106,10 @@ def render_sources(hits):
 
 
 def _empty_result(question, reason):
-    """The AnswerResult shape for a question that never reached the LLM at all (blank
-    question, or nothing indexed to search)."""
+    """The (AnswerResult, hits) shape for a question that never reached the LLM at all
+    (blank question, or nothing indexed to search). hits is always [] here: there is
+    nothing to log as a retrieval either way — retrieve() never ran, or it ran and found
+    nothing."""
     return {
         "log_id": None,
         "question": question,
@@ -117,17 +119,25 @@ def _empty_result(question, reason):
         "confidence": None,
         "response_ms": 0,
         "model": None,
-    }
+        "input_tokens": None,
+        "output_tokens": None,
+    }, []
 
 
 def answer_question(question, k=None, document_id=None):
-    """Retrieve, then answer in a single grounded call. Returns the AnswerResult shape.
+    """Retrieve, then answer in a single grounded call. Returns (AnswerResult, hits).
 
     Single-shot rather than an agent loop: with a fixed k the whole corpus slice already
     fits in context, so lazy retrieval buys nothing, and one call per question is what
     keeps this inside a free provider tier. Reasoning in docs/design-rag.md §9.
 
-    `log_id` is always None until query_logs exists (objective 3).
+    `hits` is every chunk retrieve() offered the model, cited or not — the full picture
+    `result["citations"]` alone doesn't carry, needed so POST /ask can log
+    query_retrievals rows after it writes the query_logs row (see queries.py). It is not
+    part of the public AnswerResult the client receives.
+
+    `log_id` is None here: this function has no user context. POST /ask writes the
+    query_logs row and fills it in.
     """
     question = (question or "").strip()
     if not question:
@@ -206,6 +216,10 @@ def answer_question(question, k=None, document_id=None):
     # third one is calibrated as low as it is.
     answered = bool(parsed.answered and citations and confidence >= threshold)
 
+    # Token counts feed the query log; the daily token budget is the pilot's real
+    # constraint (implementation-plan.md §7), so each question's cost is worth keeping.
+    usage = completion.usage
+
     return {
         "log_id": None,
         "question": question,
@@ -215,7 +229,9 @@ def answer_question(question, k=None, document_id=None):
         "confidence": confidence,
         "response_ms": int((time.perf_counter() - started) * 1000),
         "model": model,
-    }
+        "input_tokens": usage.prompt_tokens if usage else None,
+        "output_tokens": usage.completion_tokens if usage else None,
+    }, hits
 
 
 class AnswerError(Exception):

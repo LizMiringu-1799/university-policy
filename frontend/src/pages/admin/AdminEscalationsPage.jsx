@@ -6,6 +6,15 @@ import Alert from "../../components/Alert.jsx";
 import Button from "../../components/Button.jsx";
 import { formatDate } from "../../utils/date.js";
 
+// The two kinds of question this queue mixes, kept as separate tabs rather than one
+// blended list so an admin can tell at a glance which they're looking at: one the
+// system raised on its own (it couldn't answer at all), one a student raised by asking
+// for more detail on an answer it did give.
+const TABS = [
+  { reason: "clarification", label: "Student Raised" },
+  { reason: "unanswered", label: "System Raised" },
+];
+
 /**
  * One student question, with the full context an admin needs to answer it: who asked,
  * from which policy's reader page (if any), what the RAG system already told them, and
@@ -40,7 +49,6 @@ function EscalationRow({ item, onResolved }) {
       <div className="escalation-card-header">
         <span className={`status-badge escalation-${item.status}`}>{item.status}</span>
         <span className="escalation-date">{formatDate(item.created_at)}</span>
-        <span className="escalation-reason">{item.reason === "unanswered" ? "not covered by policies" : "clarification requested"}</span>
       </div>
 
       <p className="escalation-meta">
@@ -85,34 +93,73 @@ function EscalationRow({ item, onResolved }) {
 }
 
 /**
- * Admin's queue of student questions handed off from the RAG assistant. Defaults to
- * the "open" filter, since that's the actionable work; "resolved" and "All" are there
- * for reference. This is also what the header badge count (AppHeader) is counting.
+ * Admin's queue of student questions handed off from the RAG assistant, split into two
+ * tabs: questions a student raised themselves (via "Request clarification" on an answer
+ * they got) and questions the system raised on its own (it couldn't answer at all).
+ * Opens on the student-raised tab. Within a tab, defaults to the "open" status filter,
+ * since that's the actionable work; "resolved" and "All" are there for reference. Each
+ * tab's open count is its own badge; the header nav badge (AppHeader) is the sum of both.
  */
 export default function AdminEscalationsPage() {
   const { token } = useAuth();
+  const [reasonFilter, setReasonFilter] = useState(TABS[0].reason);
   const [items, setItems] = useState([]);
   const [statusFilter, setStatusFilter] = useState("open");
+  const [openCounts, setOpenCounts] = useState({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   function refresh() {
     setLoading(true);
     adminEscalationsApi
-      .list({ status: statusFilter }, token)
+      .list({ status: statusFilter, reason: reasonFilter }, token)
       .then((data) => setItems(data.items))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }
 
-  useEffect(refresh, [statusFilter, token]);
+  useEffect(refresh, [statusFilter, reasonFilter, token]);
+
+  // Tab badges: each tab's own open count, refreshed alongside the list so resolving a
+  // question updates the count it just came out of without a manual reload.
+  useEffect(() => {
+    Promise.all(TABS.map((tab) => adminEscalationsApi.openCount(token, { reason: tab.reason })))
+      .then((results) => {
+        const next = {};
+        TABS.forEach((tab, i) => {
+          next[tab.reason] = results[i].count;
+        });
+        setOpenCounts(next);
+      })
+      .catch(() => {});
+  }, [token, items]);
+
+  // Switching tabs always starts back at the default status filter, so a resolved-only
+  // filter left on from the other tab doesn't quietly hide everything here too.
+  function changeTab(reason) {
+    setReasonFilter(reason);
+    setStatusFilter("open");
+  }
 
   return (
     <div className="app-page">
       <AppHeader />
       <main className="admin-main">
         <h1>Student Questions</h1>
-        <p className="subtitle">Questions the assistant couldn't answer, or where a student wants more detail</p>
+
+        <div className="escalation-tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.reason}
+              type="button"
+              className={`escalation-tab${reasonFilter === tab.reason ? " active" : ""}`}
+              onClick={() => changeTab(tab.reason)}
+            >
+              {tab.label}
+              {openCounts[tab.reason] > 0 && <span className="header-badge">{openCounts[tab.reason]}</span>}
+            </button>
+          ))}
+        </div>
 
         <div className="admin-table-header">
           <h2>Questions</h2>

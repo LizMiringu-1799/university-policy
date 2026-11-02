@@ -11,30 +11,52 @@ from app.utils.errors import ApiError
 admin_escalations_bp = Blueprint("admin_escalations", __name__, url_prefix="/api/v1/admin/escalations")
 
 
+REASONS = ("unanswered", "clarification")
+
+
 @admin_escalations_bp.get("")
 @role_required("admin")
 def list_escalations():
     """The admin queue of student questions. `?status=open|resolved` filters; omitted
-    returns everything, open first."""
+    returns everything, open first. `?reason=unanswered|clarification` separates the two
+    kinds of question this queue mixes — one the system raised on its own because it
+    couldn't answer, one a student raised by asking for more detail on an answer it did
+    give — so the admin UI can show them as separate tabs rather than one blended list."""
     status = request.args.get("status")
+    reason = request.args.get("reason")
     query = Escalation.query
     if status:
         if status not in ("open", "resolved"):
             raise ApiError("validation_error", "status must be 'open' or 'resolved'", 400)
         query = query.filter_by(status=status)
+    if reason:
+        if reason not in REASONS:
+            raise ApiError("validation_error", f"reason must be one of {REASONS}", 400)
+        query = query.filter_by(reason=reason)
 
     # Open ones first and oldest-first within that, so the admin works through the queue
     # in the order students have been waiting; resolved ones trail behind for reference.
-    items = query.order_by(Escalation.status.desc(), Escalation.created_at.asc()).all()
+    # id as a tiebreaker for two escalations raised in the same second.
+    items = query.order_by(
+        Escalation.status.desc(), Escalation.created_at.asc(), Escalation.id.asc()
+    ).all()
     return jsonify({"items": [e.to_dict() for e in items]})
 
 
 @admin_escalations_bp.get("/open-count")
 @role_required("admin")
 def open_count():
-    """Cheap count for the header badge, so it doesn't have to pull every open
-    question's question/answer text just to show a number."""
-    return jsonify({"count": Escalation.query.filter_by(status="open").count()})
+    """Cheap count for a badge, so it doesn't have to pull every open question's
+    question/answer text just to show a number. `?reason=` scopes it to one of the two
+    queues (AdminEscalationsPage's tab badges); omitted, it's the aggregate the header
+    badge shows."""
+    reason = request.args.get("reason")
+    query = Escalation.query.filter_by(status="open")
+    if reason:
+        if reason not in REASONS:
+            raise ApiError("validation_error", f"reason must be one of {REASONS}", 400)
+        query = query.filter_by(reason=reason)
+    return jsonify({"count": query.count()})
 
 
 @admin_escalations_bp.post("/<int:escalation_id>/respond")

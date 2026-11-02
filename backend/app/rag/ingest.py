@@ -123,7 +123,13 @@ def index_version(version_id):
     db.session.commit()
 
     try:
-        pages = extract_pages(version.file_path, current_app.config["RAG_MIN_CHARS_PER_PAGE"])
+        pages = extract_pages(
+            version.file_path,
+            version.file_type,
+            min_chars_per_page=current_app.config["RAG_MIN_CHARS_PER_PAGE"],
+            page_chars=current_app.config["RAG_PAGE_CHARS"],
+            ocr_enabled=current_app.config["RAG_OCR_ENABLED"],
+        )
         chunks = build_chunks(
             pages,
             document.title,

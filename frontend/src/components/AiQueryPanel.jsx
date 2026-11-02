@@ -3,83 +3,16 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { queriesApi, escalationsApi } from "../api/client.js";
 import Alert from "./Alert.jsx";
+import AnswerBody from "./AnswerBody.jsx";
+import AnswerRating from "./AnswerRating.jsx";
 import Button from "./Button.jsx";
 import TextField from "./TextField.jsx";
 
-// Splits an answer on its [n] citation markers so they can be rendered as chips.
-const MARKER = /\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g;
-
-/**
- * Render one line of answer text with its [n] citation markers replaced by superscript
- * chips: a clickable Link (with page number, styled `.cite`) when `n` resolves to a
- * retrieved source in `citedPages`, or a plain unlinked marker otherwise.
- */
-function renderLine(line, citedPages) {
-  const parts = [];
-  let cursor = 0;
-  for (const match of line.matchAll(MARKER)) {
-    if (match.index > cursor) parts.push(line.slice(cursor, match.index));
-    const numbers = match[0].replace(/[[\]\s]/g, "").split(",");
-    for (const raw of numbers) {
-      const n = Number(raw);
-      const citation = citedPages[n];
-      parts.push(
-        citation ? (
-          <Link
-            key={`${match.index}-${n}`}
-            to={`/policies/${citation.documentId}?page=${citation.page}`}
-            className="cite"
-            title={citation.label}
-          >
-            {n}
-          </Link>
-        ) : (
-          <sup key={`${match.index}-${n}`} className="cite" title={`Source ${n}`}>
-            {n}
-          </sup>
-        )
-      );
-    }
-    cursor = match.index + match[0].length;
-  }
-  if (cursor < line.length) parts.push(line.slice(cursor));
-  return parts;
-}
-
-// The answer is light markdown: paragraphs plus "- " bullets. Rendering those two cases
-// directly avoids pulling in a markdown dependency for output we control the shape of.
-/** Render the LLM's answer_md as paragraphs and "- "/"* " bullet lists, with citation
- * markers on each line turned into chips via renderLine(). */
-function AnswerBody({ text, citedPages }) {
-  const blocks = [];
-  let bullets = [];
-
-  const flush = () => {
-    if (bullets.length) {
-      blocks.push(
-        <ul key={`ul-${blocks.length}`}>
-          {bullets.map((b, i) => (
-            <li key={i}>{renderLine(b, citedPages)}</li>
-          ))}
-        </ul>
-      );
-      bullets = [];
-    }
-  };
-
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flush();
-    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-      bullets.push(trimmed.slice(2));
-    } else {
-      flush();
-      blocks.push(<p key={`p-${blocks.length}`}>{renderLine(trimmed, citedPages)}</p>);
-    }
-  }
-  flush();
-  return blocks;
+/** A per-panel session id for query logging. randomUUID needs a secure context, which
+ * localhost and https both are; the fallback covers a plain-http LAN deployment. */
+function newSessionId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /**
@@ -87,7 +20,8 @@ function AnswerBody({ text, citedPages }) {
  * scoped to one policy (via `documentId`) on the reader page. Submits to POST /ask, then
  * renders the cited answer with clickable source links, and drives the human-escalation
  * handoff: automatically forwards the question to an admin when the system can't answer
- * it, and offers a "Request clarification" button when it can.
+ * it, and offers a "Request clarification" button when it can. Each answer carries a
+ * thumbs up/down (AnswerRating) keyed by the query log id the server returns.
  */
 export default function AiQueryPanel({
   as: Container = "aside",
@@ -98,6 +32,8 @@ export default function AiQueryPanel({
   documentId,
 }) {
   const { token } = useAuth();
+  // One id per mount: every question asked from this panel is logged under it.
+  const [sessionId] = useState(newSessionId);
   const [question, setQuestion] = useState("");
   const [askedQuestion, setAskedQuestion] = useState("");
   const [result, setResult] = useState(null);
@@ -119,7 +55,7 @@ export default function AiQueryPanel({
     setAskedQuestion(asked);
     setLoading(true);
     try {
-      const data = await queriesApi.ask(asked, token, documentId);
+      const data = await queriesApi.ask(asked, token, documentId, sessionId);
       setResult(data);
       if (!data.answered) {
         // The policies don't cover this, so route it to an admin without making the
@@ -143,6 +79,9 @@ export default function AiQueryPanel({
           question: asked,
           reason,
           document_id: documentId,
+          // Links the handoff to the logged exchange, so the admin queue can show the
+          // rating the student leaves on this answer (often just after escalating).
+          query_log_id: data.log_id,
           system_answer_md: data.answer_md,
           system_confidence: data.confidence,
         },
@@ -209,6 +148,10 @@ export default function AiQueryPanel({
               <span className="ai-unanswered">not covered by the indexed policies</span>
             )}
           </div>
+
+          {/* Shown for unanswered results too: a thumbs-down there flags a policy the
+              system wrongly said it doesn't cover, which is the most useful signal. */}
+          {result.log_id != null && <AnswerRating key={result.log_id} logId={result.log_id} />}
 
           {result.answered ? (
             <div className="ai-escalation">

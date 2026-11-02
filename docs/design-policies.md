@@ -2,7 +2,7 @@
 
 Companion to [design-auth.md](design-auth.md) and [implementation-plan.md](implementation-plan.md). Scope: everything that happens after login — students/staff browse, search, and read policies (with an AI-query placeholder); admins get full CRUD over the policy repository. This is objectives 1 and 2 from implementation-plan.md, adapted to MySQL/XAMPP, with the RAG-specific pieces (Chroma, embeddings, indexing) left out — those come later per the roadmap; the AI query surface here is a UI placeholder only.
 
-## 1. The storage question: PDF files on disk, not as DB blobs
+## 1. The storage question: files on disk, not as DB blobs
 
 **Decision:** the PDF binary lives on the filesystem (`backend/data/pdfs/{document_id}/v{version_number}.pdf`); MySQL stores only metadata and a path pointer.
 
@@ -98,7 +98,7 @@ Only `status='active'` documents are visible through `GET /documents` and `GET /
 | `POST /admin/documents/:id/versions` | multipart: `file` | `201 Document` (new current version) |
 | `PATCH /admin/documents/:id` | `{title?, category?, status?}` (`status:"archived"` = archive, `"active"` = restore) | `Document` |
 
-Upload validation: `application/pdf` only, 25 MB cap enforced on the stream (matches implementation-plan.md §8.3 — cap before parsing, not after).
+Upload validation (2026-09-22): PDF, Word (`.docx`), plain text/markdown, and scanned images (`.png`/`.jpg`/`.tiff`/`.bmp`/`.webp`) — see app/utils/filetypes.py, which both upload validation and the reader's viewer choice read from. A recognized-but-unreadable legacy format (`.doc`, `.rtf`, `.odt`, `.pages`) gets a specific "re-save as" message rather than a generic rejection. 25 MB cap enforced on the stream regardless of format (matches implementation-plan.md §8.3 — cap before parsing, not after).
 
 ## 5. Frontend
 

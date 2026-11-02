@@ -34,10 +34,10 @@ Two consequences worth stating. The corpus produces roughly 3 to 4 times more ch
 
 ```mermaid
 flowchart LR
-    U[Admin uploads PDF] --> V[document_versions row<br/>index_status=pending]
+    U[Admin uploads PDF/Word/text/image] --> V[document_versions row<br/>index_status=pending, file_type set]
     V --> Q[ingest queue]
     Q --> W[single worker thread]
-    W --> E[extract text per page<br/>pypdf]
+    W --> E[extract text per page/pseudo-page<br/>pypdf + OCR fallback, python-docx, or plain text]
     E --> C[chunk<br/>850 chars, sentence-aware]
     C --> P[prefix with title + page]
     P --> CH[(Chroma collection<br/>policies)]
@@ -46,9 +46,15 @@ flowchart LR
 
 ### 2.1 Extraction (plan task 2.2)
 
-`pypdf` page by page. Each page's text is whitespace-normalized (collapse runs of spaces and newlines, strip hyphenation at line ends) and kept with its 1-based page number, because the page number is what makes a citation clickable later.
+Dispatches on `DocumentVersion.file_type` (app/rag/extraction.py):
 
-**Scanned PDFs fail loudly.** If extraction yields under 100 characters per page on average, the version is marked `index_status='failed'` with `index_error` explaining that the PDF has no extractable text layer and OCR is out of scope. implementation-plan.md §10 already scoped OCR out; this makes the failure visible in the admin UI instead of producing a document that is silently unsearchable.
+- **PDF** — `pypdf` page by page, whitespace-normalized (collapse runs of spaces and newlines, strip hyphenation at line ends), kept with its 1-based page number.
+- **Word (`.docx`)** and **plain text/markdown** — no real page boundaries, so paragraphs (and, for Word, flattened table rows) are grouped into pseudo-pages of about `RAG_PAGE_CHARS` (2500) characters each, breaking between paragraphs rather than mid-sentence. `page_count` at upload time comes from running this same extraction, so the admin table's count matches what citations will cite.
+- **Directly uploaded images** — OCR'd as the document's one page.
+
+Either way the page number is what makes a citation clickable later (a PDF page jump, or a scroll-to-pseudo-page in the reader's text view for Word/text — design-policies.md).
+
+**Scanned PDFs get OCR, not a loud failure (2026-09-22, supersedes the note below).** Originally, under-100-characters-per-page meant `index_status='failed'` with OCR out of scope (implementation-plan.md §10 as first written). That changed: a page under the threshold that also carries an embedded image is rasterized (PyMuPDF) and OCR'd (RapidOCR, CPU/onnxruntime — the runtime chromadb already depends on) page-by-page, so a mixed document (some scanned pages, some not) recovers what it can rather than failing wholesale. A document still fails loudly if the total is under threshold even after OCR, or if `RAG_OCR_ENABLED=false`. Directly uploaded images go through the same OCR call as their one page.
 
 **pdfplumber is not installed.** Plan task 2.2 lists it as a fallback for stubborn layouts. Deferring it: it is a heavy dependency to add on speculation, and the `failed` status plus `index_error` tells us whether any real policy in the corpus actually needs it. If one does, adding a fallback inside the extraction function is a contained change.
 
@@ -116,7 +122,7 @@ The migration leaves existing rows at the `pending` default, so the startup reco
 
 **`index_status` records the last indexing attempt for that version, not current membership of the index.** A superseded version keeps `indexed` and its old `chunk_count` after its vectors are deleted (§3). Nothing reads it that way: the admin table shows the *current* version's status, which is always accurate, and the index itself is authoritative about what is searchable. Worth knowing before reading `versions[]` in a document detail response and concluding two versions are both live.
 
-**`query_logs` and `query_retrievals` are deliberately not created yet.** implementation-plan.md §6 defines them and §4.6 has `retrieve()` writing `query_retrievals` rows. Both belong to the agent pass: creating them now means two empty tables and a logging arm on `retrieve()` with nothing to attach to, and their shape is likelier to be right once the agent is real. `retrieve()` takes an optional `query_log_id` parameter from day one so adding the write is a few lines, not a signature change. The plan's §6 DDL is also still written in SQLite; it needs a MySQL rewrite when those tables land, the same way this section rewrote the `document_versions` columns.
+**`query_retrievals` exists (2026-10-09)**, built alongside the objective 5 dashboard it feeds — ambiguity analysis needed somewhere real to attach retrieved-chunk data to, and the dashboard needed that data to be real before its queries could be trusted. Written by `POST /ask`, not by `retrieve()` itself: the originally-planned `query_log_id` parameter on `retrieve()` (implementation-plan.md §4.6) would need the `query_logs` row to exist before retrieval ever runs, which it doesn't — the row is written once, after the whole exchange is known (app/models/query_log.py's `QueryLog` docstring). Dropped in favour of a simpler sequence: `answer_question()` returns `(result, hits)`, and the route logs every hit in `hits` — cited or not — right after it writes the `query_logs` row (queries.py's `_log_retrievals`). The plan's §6 DDL is also still written in SQLite; it needed the MySQL rewrite this migration's actual columns now are, the same way this section rewrote the `document_versions` columns.
 
 ## 5. Ingestion queue
 
@@ -138,7 +144,7 @@ retrieve(query: str, k: int = 8, query_log_id: int | None = None)
          category, page, text, similarity, rank}]
 ```
 
-An in-process function, not a route (implementation-plan.md §4.6). It embeds the query, queries Chroma for top `k`, converts distance to similarity, and returns results ranked. The `query_log_id` parameter is accepted and currently unused; it becomes the `query_retrievals` write in the agent pass.
+An in-process function, not a route (implementation-plan.md §4.6). It embeds the query, queries Chroma for top `k`, converts distance to similarity, and returns results ranked. No `query_log_id` parameter (dropped — see §2.1 above): `retrieve()` stays side-effect-free, and `query_retrievals` rows are written by the caller once the exchange is logged.
 
 Callers: the answering path in §9 (via `POST /ask`), the `flask search` CLI in §8, and the benchmark harness once it exists. `document_id` scopes the search to a single policy, which is what the reader page's panel sends.
 
@@ -202,7 +208,7 @@ The inline `[n]` markers in the answer text, meanwhile, are consistently correct
 
 - **Confidence:** mean similarity of the cited chunks. A query counts as answered only when the model set `answered: true`, at least one citation resolved, and confidence ≥ 0.35. The middle condition is the addition: a model answering with no citations has stopped being grounded whatever it claims.
 - **`POST /api/v1/ask`** returns `AnswerResult` (plan §4.5), plus an optional `document_id` to scope retrieval to one policy, which is what the reader page's panel sends.
-- **Logging:** `query_logs` and `query_retrievals` still arrive with objective 3, in MySQL (§4), with `session_id` from the first migration since it cannot be reconstructed afterwards. `log_id` is `null` in every response until then.
+- **Logging:** `query_logs` exists (2026-09-17), in MySQL (§4), with `session_id` from its first migration since it cannot be reconstructed afterwards; `POST /ask` writes one row per exchange and returns its id as `log_id`, which the thumbs up/down under each answer posts to `POST /queries/:log_id/feedback`. `query_retrievals` exists too (2026-10-09), every retrieved chunk logged regardless of citation, feeding the objective 5 dashboard's ambiguity metric.
 - **Streaming:** deferred rather than cancelled. Answers return in one to seven seconds, so request/response is adequate; revisit if the pilot shows users waiting.
 
 ## 10. Validation against constraints

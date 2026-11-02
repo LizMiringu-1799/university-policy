@@ -7,10 +7,11 @@ import Button from "./Button.jsx";
 const OPEN_COUNT_POLL_MS = 20000;
 
 /**
- * Site header: brand link, role-appropriate nav (admin gets Manage Policies + Student
- * Questions; everyone else gets My Questions), a role badge, and logout. For an admin,
- * also polls the open-escalation count every OPEN_COUNT_POLL_MS and shows it as a badge
- * on "Student Questions" so a new question is visible from anywhere in the admin UI.
+ * Site header: brand link, role-appropriate nav (admin gets Manage Policies, Student
+ * Questions, Ratings, and Analytics; everyone else gets Chat History and My Questions),
+ * a role badge, and logout. For an admin, also polls the open-escalation count every
+ * OPEN_COUNT_POLL_MS and shows it as a badge on "Student Questions" so a new question
+ * is visible from anywhere in the admin UI.
  */
 export default function AppHeader() {
   const { user, token, logout } = useAuth();
@@ -52,11 +53,22 @@ export default function AppHeader() {
               Student Questions
               {openCount > 0 && <span className="header-badge">{openCount}</span>}
             </Link>
+            <Link to="/admin/ratings" className="app-header-link">
+              Ratings
+            </Link>
+            <Link to="/admin/analytics" className="app-header-link">
+              Analytics
+            </Link>
           </>
         ) : (
-          <Link to="/my-questions" className="app-header-link">
-            My Questions
-          </Link>
+          <>
+            <Link to="/chat-history" className="app-header-link">
+              Chat History
+            </Link>
+            <Link to="/my-questions" className="app-header-link">
+              My Questions
+            </Link>
+          </>
         )}
         <span className="role-badge">{user?.role}</span>
         <Button variant="secondary" onClick={logout}>

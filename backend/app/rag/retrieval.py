@@ -29,15 +29,20 @@ def _to_hit(cid, text, meta, similarity, rank):
     }
 
 
-def retrieve(query_text, k=None, query_log_id=None, document_id=None):
+def retrieve(query_text, k=None, document_id=None):
     """Top-k policy chunks for a natural-language query, best match first.
 
-    An in-process function rather than a route: the agent's `search_policies` tool,
-    `POST /ask`, and the benchmark harness all call it directly, so there is no network
-    hop or shared secret to arrange.
+    An in-process function rather than a route: `POST /ask` and the `flask search` CLI
+    command both call it directly, so there is no network hop or shared secret to
+    arrange.
 
-    `query_log_id` is accepted but unused until `query_retrievals` exists (objective 3);
-    taking it now keeps that from being a signature change. See docs/design-rag.md §6.
+    Stays side-effect-free with respect to query_retrievals (objective 3): logging every
+    retrieved chunk needs the QueryLog row it belongs to, which doesn't exist until after
+    the whole exchange is answered, not at retrieval time. `answer_question()` returns
+    its hits back up to the /ask route instead, which logs them once the row does exist
+    — see queries.py's `_log_retrievals`. An earlier plan threaded a `query_log_id`
+    parameter through here for the same purpose; dropped because it would require
+    creating that row before retrieval even runs.
 
     No status filter is applied, and none is needed: the index holds exactly the current
     version of every active document, because archiving and version replacement delete

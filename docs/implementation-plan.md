@@ -59,7 +59,7 @@ Flow of one question:
 3. The chunks are rendered as numbered extracts and sent to the model in a **single** grounded call, constrained to a strict JSON schema of `{answered, answer_md}`.
 4. Flask parses the inline `[n]` markers out of `answer_md` to build the citation list, computes confidence from the cited chunks' similarities, and returns `AnswerResult`.
 
-From objective 3, step 1 also opens a `query_logs` row and step 4 finalizes it; that table does not exist yet. Streaming over Socket.IO (§5) is likewise deferred: with answers arriving in one to seven seconds, a plain request/response is adequate, and streaming is a UX improvement to make once the pilot shows it is needed.
+Step 4 also writes the `query_logs` row (built 2026-09-17, ahead of the rest of objective 3, because answer ratings need a persistent id to attach to). It is written once, after the outcome is known, rather than opened in step 1 and finalized in step 4: with a synchronous single call there is no intermediate state worth recording, and a failed call still gets a row with `status = error`. Streaming over Socket.IO (§5) is likewise deferred: with answers arriving in one to seven seconds, a plain request/response is adequate, and streaming is a UX improvement to make once the pilot shows it is needed.
 
 Ingestion (upload → text extraction → chunking → embedding → Chroma) and answering both run inside Flask; ingestion writes, answering only reads. The two compete for the same CPU, which is why ingestion is serialized behind a single-worker queue (§8.3).
 
@@ -80,7 +80,7 @@ Week 1 — repository:
 | 1.1 | Repo scaffolding | Monorepo: `backend/`, `frontend/`, `docker-compose.yml`, `.env.example` — the RAG agent lives inside `backend/` (e.g. `backend/app/agent.py`) |
 | 1.2 | Flask app factory, SQLAlchemy models, Flask-Migrate | Tables from §6 (users, documents, document_versions now; the rest migrate in later) |
 | 1.3 | Auth: register, login, JWT, role field | Seed one admin account via CLI command |
-| 1.4 | PDF upload + storage | Multipart upload, validate `application/pdf`, 25 MB cap, store under `data/pdfs/{document_id}/v{n}.pdf`, sha256 hash |
+| 1.4 | PDF upload + storage | Multipart upload, validate `application/pdf`, 25 MB cap, store under `data/pdfs/{document_id}/v{n}.pdf`, sha256 hash. Extended 2026-09-22 to Word (`.docx`), plain text/markdown, and images, keyed on extension (app/utils/filetypes.py) — file stored as `v{n}{ext}`, `DocumentVersion.file_type` recorded |
 | 1.5 | Document list/detail/file endpoints | §4.2 |
 | 1.6 | React shell | Vite + router; pages: Login/Register, Policy Library (search/filter by category), PDF viewer (iframe or react-pdf) |
 | 1.7 | Seed corpus | Bulk-upload script; load ≥30 real policy PDFs |
@@ -109,7 +109,7 @@ Week 3 — ingestion + retrieval:
 | # | Task | Notes |
 |---|---|---|
 | 2.1 | Chroma client wiring | Embedded persistent client (no separate container); collection `policies`, cosine space set at creation; data dir on the app-data volume |
-| 2.2 | Text extraction | `pypdf` per page, store page boundaries; scanned PDFs (no text layer) fail loudly as `index_status='failed'`. `pdfplumber` stays an unadded fallback until a real policy needs it (design-rag.md §2.1) |
+| 2.2 | Text extraction | `pypdf` per page, store page boundaries; scanned PDF pages and directly uploaded images go through OCR (RapidOCR + PyMuPDF rasterization, 2026-09-22 — `RAG_OCR_ENABLED` to turn off); a document still fails loudly as `index_status='failed'` if text is too sparse even after OCR. Word/text formats paginate on paragraph groups instead of real pages. `pdfplumber` stays an unadded fallback until a real policy needs it (design-rag.md §2.1) |
 | 2.3 | Chunking | ~850-character chunks (~210 tokens), 130-character overlap, never split mid-sentence; each chunk prefixed with title and page; metadata: `document_id`, `version_id`, `title`, `category`, `page`, `chunk_index` |
 | 2.4 | Index on upload + backfill command | Version replace = index new, then delete old version's chunks; archive = delete chunks. `index_status` tracked per version; ingestion serialized behind one worker thread (§8.3) |
 | 2.5 | Internal retrieval function | `retrieve()` (§4.6): embed query, top-k (default 8) with similarities |
@@ -135,7 +135,7 @@ Week 4 — answering + UI:
 
 | # | Task | Notes |
 |---|---|---|
-| 3.1 | Complete QueryLog wiring | Every path (WS + `/ask`) writes text, timestamp, retrievals, confidence, status incl. `unanswered`, latency, token usage |
+| 3.1 | Complete QueryLog wiring | Every path (WS + `/ask`) writes text, timestamp, retrievals, confidence, status incl. `unanswered`, latency, token usage. **Built 2026-10-09** (WS part moot — §5 is still deferred) |
 | 3.2 | Provision VM | Ubuntu 22.04+, Docker, compose; DNS + TLS via Caddy |
 | 3.3 | Production compose | Restart policies, resource limits, volumes for MySQL/Chroma/PDFs; env-file secrets; API key never in the image |
 | 3.4 | Safeguards | Per-user rate limit (e.g. 10 questions/hour), request size limits. The spend alert this originally called for is moot on a free tier; what replaces it is watching the provider's daily token budget, since exhausting it takes the pilot down for the rest of the day |
@@ -164,10 +164,10 @@ Week 4 — answering + UI:
 
 | # | Task | Notes |
 |---|---|---|
-| 5.1 | Analytics API (§4.4) | Summary stats, top queries, unanswered, low-confidence, per-document demand |
-| 5.2 | Admin analytics dashboard | Charts: query volume over time, answered vs unanswered, confidence distribution, most-queried policies, most-ambiguous policies (retrieved-often-but-cited-rarely, plus reformulation chains via `session_id` — see §4.4) |
+| 5.1 | Analytics API (§4.4) | Summary stats, top queries, unanswered, low-confidence, per-document demand. **Built 2026-10-09**, except `/admin/query-logs` (raw log browsing + CSV) and `/admin/analytics/top-queries` (query clustering) — the latter needs task 4.3's offline embedding-clustering script to have actually run against real pilot volume; a live endpoint doing that work mid-request is exactly what 4.3 says not to do |
+| 5.2 | Admin analytics dashboard | Charts: query volume over time, answered vs unanswered, most-queried policies, most-ambiguous policies. **Built 2026-10-09.** Confidence distribution and reformulation chains via `session_id` (§4.4) not built — no pilot volume yet to make either chart meaningful |
 
-**Done when:** the dashboard renders query volume over time, answered-vs-unanswered rate, most-queried and most-ambiguous policies, live from `query_logs`.
+**Done when:** the dashboard renders query volume over time, answered-vs-unanswered rate, most-queried and most-ambiguous policies, live from `query_logs`. **Met 2026-10-09**, on synthetic/dev data; the real signal arrives once objective 3's pilot runs.
 
 Listed last to match objectives.md, but it is built in Week 6 alongside objective 3, not after objective 4. It reads only data objective 3 already collects, so it adds no data-collection requirement and does not extend the timeline.
 
@@ -237,8 +237,8 @@ Codes: `validation_error` (400), `unauthorized` (401), `forbidden` (403), `not_f
 | Method + path | Body | Returns |
 |---|---|---|
 | `POST /ask` | `{question, document_id?}` | `AnswerResult`. `document_id` scopes retrieval to one policy; omit it to search the whole corpus. **Built** |
-| `GET /queries/mine` | `?page=` | user's past `{question, answer, confidence, created_at, citations}`. Needs `query_logs` (objective 3) |
-| `POST /queries/:log_id/feedback` | `{rating: "up"\|"down", comment?}` | `204`. Needs `query_logs` (objective 3) |
+| `GET /queries/mine` | `?page=&per_page=` | user's past `{question, answer, confidence, created_at, document}` and own `rating`. **Built 2026-09-22.** No `citations` — those live in `query_retrievals`, not `query_logs`, and this route doesn't join them; AiQueryPanel's clickable source links are a live-answer-only feature |
+| `POST /queries/:log_id/feedback` | `{rating: "up"\|"down", comment?}` | `204`. Only the asker can rate their own query; posting again replaces the rating, and `comment` is left untouched when the key is absent. **Built** |
 
 Error codes specific to `/ask`: `rate_limited` (429) when the provider's per-minute ceiling is hit, which on a free tier is an expected condition rather than a fault, and `upstream_error` (502) when the provider call fails outright.
 
@@ -259,13 +259,13 @@ Error codes specific to `/ask`: `rate_limited` (429) when the provider's per-min
 }
 ```
 
-`answer_md` is markdown with inline `[n]` markers, and `citations[].n` carries the same number the reader sees in the text. The numbers are the ranks of the retrieved extracts, so they can be non-contiguous (an answer citing extracts 1, 4 and 5 produces three citations numbered 1, 4 and 5). That is deliberate: markers and chips line up without rewriting the model's text. `log_id` is `null` until `query_logs` exists in objective 3.
+`answer_md` is markdown with inline `[n]` markers, and `citations[].n` carries the same number the reader sees in the text. The numbers are the ranks of the retrieved extracts, so they can be non-contiguous (an answer citing extracts 1, 4 and 5 produces three citations numbered 1, 4 and 5). That is deliberate: markers and chips line up without rewriting the model's text. `log_id` is the `query_logs` row written for the exchange, and what the rating in the UI posts against; `answer_question()` itself returns it as `null` because the route, not the pipeline, does the logging. `input_tokens` and `output_tokens` from the provider's usage report are also returned and logged.
 
 **Citations are parsed from the answer text, not requested as a field.** Asked for a `citations: [int]` array alongside the answer, the model concatenated the digits of the extracts it used, returning `[1458]` for extracts 1, 4, 5 and 8. Constraining the array with a JSON-schema enum did not fix it: Groq validates the enum after generation and returns a 400 rather than decoding against it, which turned a wrong value into a hard failure. The inline `[n]` markers, meanwhile, are consistently correct, so the response schema asks only for `{answered, answer_md}` and the server extracts the markers. Fewer moving parts, and it relies on the output the model is demonstrably good at.
 
 ### 4.6 Internal retrieval (in-process function, not a route)
 
-`retrieve(query: str, k: int = 8, query_log_id: int | None = None, document_id: int | None = None) -> [{chunk_id, document_id, version_id, version_number, title, category, page, text, similarity, rank}]` — embeds the query, searches Chroma, and (from objective 3) inserts `query_retrievals` rows. Called by `POST /ask` and by the benchmark harness (2.11); no network hop or shared secret needed since it never leaves the process. `document_id` scopes the search to a single policy. Only `status=active` documents' current versions are in the index at all, so no status filter is applied (design-rag.md §3).
+`retrieve(query: str, k: int = 8, document_id: int | None = None) -> [{chunk_id, document_id, version_id, version_number, title, category, page, text, similarity, rank}]` — embeds the query and searches Chroma. No `query_log_id` parameter, and it does not insert `query_retrievals` rows itself: that would need the row to exist before retrieval ever runs, and it doesn't until the whole exchange is logged. `POST /ask` logs every hit this returns, cited or not, right after it writes the `query_logs` row (queries.py's `_log_retrievals`) — see design-rag.md §2.1 for why that superseded the plan written here. Called by `POST /ask` and the `flask search` CLI command (no benchmark harness exists); no network hop or shared secret needed since it never leaves the process. `document_id` scopes the search to a single policy. Only `status=active` documents' current versions are in the index at all, so no status filter is applied (design-rag.md §3).
 
 ## 5. WebSocket specification
 
@@ -369,19 +369,23 @@ document_versions (
   index_error    VARCHAR(500) NULL                 -- objective 2
 )
 
--- objective 3: the QueryLog table from objectives.md
+-- built (objective 3, 2026-09-17): the QueryLog table from objectives.md
 query_logs (
   id            INT AUTO_INCREMENT PK,
   user_id       INT NOT NULL FK -> users.id,
-  session_id    CHAR(36) NOT NULL,        -- client-generated per chat session; lets
+  session_id    VARCHAR(36) NULL,         -- client-generated per chat panel mount; lets
                                           -- objectives 4 and 5 detect reformulation
                                           -- chains (same user rephrasing the same
                                           -- question). Cannot be reconstructed after
-                                          -- the fact, so it ships with the table.
+                                          -- the fact, so it ships with the table. NULL
+                                          -- only for API callers that omit it.
+  document_id   INT NULL FK -> documents.id,  -- set when /ask was scoped to one policy
   query_text    TEXT NOT NULL,
   created_at    DATETIME NOT NULL,        -- timestamp
-  status        ENUM('pending','answered','unanswered','error','cancelled') NOT NULL,
-  answer_text   MEDIUMTEXT NULL,
+  status        ENUM('answered','unanswered','error') NOT NULL,
+                                          -- written once after the outcome is known, so
+                                          -- no pending/cancelled; add them if streaming lands
+  answer_text   TEXT NULL,
   confidence    FLOAT NULL,               -- 0-1, NULL until final
   response_ms   INT NULL,
   model         VARCHAR(60) NULL,
@@ -390,7 +394,7 @@ query_logs (
   error_code    VARCHAR(40) NULL
 )
 
--- objective 3: "retrieved documents" per query
+-- built (objective 3, 2026-10-09): "retrieved documents" per query
 query_retrievals (
   id                  INT AUTO_INCREMENT PK,
   query_log_id        INT NOT NULL FK -> query_logs.id,
@@ -403,14 +407,15 @@ query_retrievals (
   cited               BOOLEAN NOT NULL DEFAULT 0  -- set when it lands in the citations
 )
 
--- objective 3
+-- built (objective 3, 2026-09-17)
 feedback (
   id           INT AUTO_INCREMENT PK,
-  query_log_id INT NOT NULL UNIQUE FK -> query_logs.id,
+  query_log_id INT NOT NULL UNIQUE FK -> query_logs.id,  -- one rating per query; re-rating updates
   user_id      INT NOT NULL FK -> users.id,
   rating       ENUM('up','down') NOT NULL,
   comment      TEXT NULL,
-  created_at   DATETIME NOT NULL
+  created_at   DATETIME NOT NULL,
+  updated_at   DATETIME NOT NULL
 )
 ```
 
@@ -538,7 +543,7 @@ Secrets in `.env` on the VM only (never committed). Local dev on Windows runs th
 | Ingestion starves the web server | One-worker ingestion queue + `OMP_NUM_THREADS=1` (§8.3, §8.4); `mem_limit` on the Flask service so a runaway ingest restarts the container instead of the VM |
 | Pilot volume short of 200 queries | Weekly checkpoint (3.7); mid-pilot nudge/reminders; extend window a few days if needed (timeline has slack in weeks 7–9) |
 | MySQL connections dropped under a long-lived worker thread | `pool_pre_ping` on the engine and `db.session.remove()` per queue item (§8.2); at this scale write contention is a non-issue |
-| PDF extraction failures on scanned policies | `index_status=failed` surfaces in admin UI; scanned docs are out of scope unless OCR is added later |
+| PDF extraction failures on scanned policies | OCR (RapidOCR) now recovers most scanned pages and images (2026-09-22); `index_status=failed` with `index_error` still surfaces in the admin UI for the residue OCR can't read (too low-resolution, skewed, or handwritten), or when `RAG_OCR_ENABLED=false` |
 
 ## 11. Immediate next steps
 

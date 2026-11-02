@@ -4,8 +4,11 @@ import RegisterPage from "./pages/RegisterPage.jsx";
 import PolicyLibraryPage from "./pages/PolicyLibraryPage.jsx";
 import PolicyReaderPage from "./pages/PolicyReaderPage.jsx";
 import MyQuestionsPage from "./pages/MyQuestionsPage.jsx";
+import ChatHistoryPage from "./pages/ChatHistoryPage.jsx";
 import AdminPoliciesPage from "./pages/admin/AdminPoliciesPage.jsx";
 import AdminEscalationsPage from "./pages/admin/AdminEscalationsPage.jsx";
+import AdminRatingsPage from "./pages/admin/AdminRatingsPage.jsx";
+import AdminAnalyticsPage from "./pages/admin/AdminAnalyticsPage.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 
@@ -45,6 +48,14 @@ export default function App() {
           }
         />
         <Route
+          path="/chat-history"
+          element={
+            <ProtectedRoute>
+              <ChatHistoryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/admin/policies"
           element={
             <ProtectedRoute role="admin">
@@ -57,6 +68,22 @@ export default function App() {
           element={
             <ProtectedRoute role="admin">
               <AdminEscalationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/ratings"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminRatingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/analytics"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminAnalyticsPage />
             </ProtectedRoute>
           }
         />

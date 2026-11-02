@@ -1,9 +1,11 @@
 import os
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, current_app, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt
 
 from app.models.document import Document, DocumentVersion
+from app.rag.extraction import ExtractionError, extract_pages
+from app.utils import filetypes
 from app.utils.errors import ApiError
 
 documents_bp = Blueprint("documents", __name__, url_prefix="/api/v1/documents")
@@ -71,23 +73,66 @@ def get_document(document_id):
     return jsonify(document.to_detail_dict())
 
 
+def _resolve_version(document, version_number):
+    """The document's version matching `version_number`, or its current version when
+    `version_number` is falsy. Shared by /file and /text so both honor ?version=N the
+    same way."""
+    if version_number:
+        return DocumentVersion.query.filter_by(document_id=document.id, version_number=version_number).first()
+    return document.current_version
+
+
 @documents_bp.get("/<int:document_id>/file")
 @jwt_required()
 def get_document_file(document_id):
-    """Stream the PDF itself, for the in-browser reader. `?version=N` fetches an old
-    version instead of the current one; `conditional=True` lets the browser range-request
-    and cache it rather than re-downloading the whole file on every page jump."""
+    """Stream the file itself, for the in-browser reader (PDFs and images go straight
+    into a native viewer there; Word/text documents use /text instead, see below).
+    `?version=N` fetches an old version instead of the current one; `conditional=True`
+    lets the browser range-request and cache it rather than re-downloading the whole
+    file on every page jump."""
     document = _base_query().filter_by(id=document_id).first()
     if not document:
         raise ApiError("not_found", f"document {document_id} does not exist", 404)
 
-    version_number = request.args.get("version", type=int)
-    if version_number:
-        version = DocumentVersion.query.filter_by(document_id=document_id, version_number=version_number).first()
-    else:
-        version = document.current_version
-
+    version = _resolve_version(document, request.args.get("version", type=int))
     if not version or not os.path.exists(version.file_path):
         raise ApiError("not_found", "file not found for this document/version", 404)
 
-    return send_file(version.file_path, mimetype="application/pdf", conditional=True, as_attachment=False)
+    media_type = filetypes.media_type_for(version.file_type, version.file_path)
+    return send_file(version.file_path, mimetype=media_type, conditional=True, as_attachment=False)
+
+
+@documents_bp.get("/<int:document_id>/text")
+@jwt_required()
+def get_document_text(document_id):
+    """Extracted text, paginated the same way indexing sees it, for formats the browser
+    can't render natively (Word docs, plain text — filetypes.viewer_for == "text").
+    `?version=N` behaves as in /file.
+
+    Runs extraction synchronously with OCR off, which is safe here only because neither
+    format this route serves ever needs OCR (both are born-digital); a scanned PDF or
+    image is rejected with 409 rather than risk running OCR inline on a web request.
+    """
+    document = _base_query().filter_by(id=document_id).first()
+    if not document:
+        raise ApiError("not_found", f"document {document_id} does not exist", 404)
+
+    version = _resolve_version(document, request.args.get("version", type=int))
+    if not version or not os.path.exists(version.file_path):
+        raise ApiError("not_found", "file not found for this document/version", 404)
+
+    if filetypes.viewer_for(version.file_type) != "text":
+        raise ApiError("conflict", "this document's viewer is not text-based; use /file instead", 409)
+
+    try:
+        pages = extract_pages(
+            version.file_path,
+            version.file_type,
+            min_chars_per_page=0,
+            page_chars=current_app.config["RAG_PAGE_CHARS"],
+            ocr_enabled=False,
+        )
+    except ExtractionError as err:
+        raise ApiError("upstream_error", f"could not read this document: {err}", 502)
+
+    return jsonify({"file_type": version.file_type, "pages": [{"page": n, "text": t} for n, t in pages]})

@@ -30,6 +30,8 @@ class Config:
         if origin.strip()
     ]
 
+    # Name predates non-PDF uploads (Word docs, images, text files land here too now);
+    # kept as PDF_STORAGE_DIR rather than renamed so existing .env files don't break.
     PDF_STORAGE_DIR = os.environ.get("PDF_STORAGE_DIR", os.path.join(BASE_DIR, "data", "pdfs"))
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 25 MB upload cap, enforced on the stream
 
@@ -45,8 +47,17 @@ class Config:
     RAG_CHUNK_MAX_CHARS = int(os.environ.get("RAG_CHUNK_MAX_CHARS", 1100))
     RAG_CHUNK_OVERLAP_CHARS = int(os.environ.get("RAG_CHUNK_OVERLAP_CHARS", 130))
     RAG_TOP_K = int(os.environ.get("RAG_TOP_K", 8))
-    # Below this, a PDF is treated as scanned (no text layer) rather than silently indexed empty.
+    # Below this, a PDF page is treated as scanned (no text layer) and, if RAG_OCR_ENABLED,
+    # sent through OCR instead of being indexed empty.
     RAG_MIN_CHARS_PER_PAGE = int(os.environ.get("RAG_MIN_CHARS_PER_PAGE", 100))
+    # Word docs and plain text have no real page boundaries, so extraction fakes one every
+    # this many characters — enough for a citation's "page N" to point at a useful-sized
+    # slice of the document without needing a layout engine.
+    RAG_PAGE_CHARS = int(os.environ.get("RAG_PAGE_CHARS", 2500))
+    # OCR (RapidOCR, CPU/onnxruntime) runs on scanned PDF pages and directly uploaded
+    # images. An escape hatch: turn off if it proves too slow or noisy mid-pilot without
+    # a code change, same pattern as the LLM provider being config rather than code.
+    RAG_OCR_ENABLED = os.environ.get("RAG_OCR_ENABLED", "true").strip().lower() != "false"
 
     # Answering LLM. Addressed through an OpenAI-compatible endpoint so the provider is a
     # base URL and a model string rather than a code dependency (docs/design-rag.md §9).
