@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LoginPage.jsx";
 import RegisterPage from "./pages/RegisterPage.jsx";
+import WelcomePage from "./pages/WelcomePage.jsx";
 import PolicyLibraryPage from "./pages/PolicyLibraryPage.jsx";
 import PolicyReaderPage from "./pages/PolicyReaderPage.jsx";
 import MyQuestionsPage from "./pages/MyQuestionsPage.jsx";
@@ -13,7 +14,8 @@ import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 
 /**
- * Top-level route table. `/` and `/register` are public; everything else requires a
+ * Top-level route table. `/` and `/register` are public; everything else (including the
+ * post-login `/welcome` landing page) requires a
  * session via ProtectedRoute, and the `/admin/*` routes additionally require role="admin".
  */
 export default function App() {
@@ -23,6 +25,14 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/welcome"
+          element={
+            <ProtectedRoute forbidRole="admin">
+              <WelcomePage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/policies"
           element={

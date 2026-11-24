@@ -7,7 +7,7 @@ import Button from "../components/Button.jsx";
 import Alert from "../components/Alert.jsx";
 
 /** Sign-in form. On success, AuthContext.login() persists the session and this
- * navigates to the policy library. */
+ * navigates to the welcome page (admins go straight to policy management). */
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -21,8 +21,8 @@ export default function LoginPage() {
     setError("");
     setSubmitting(true);
     try {
-      await login(email, password);
-      navigate("/policies");
+      const user = await login(email, password);
+      navigate(user.role === "admin" ? "/admin/policies" : "/welcome");
     } catch (err) {
       setError(err.message);
     } finally {

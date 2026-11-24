@@ -7,7 +7,7 @@ import Button from "../components/Button.jsx";
 import Alert from "../components/Alert.jsx";
 
 /** Self-service signup form. Always creates a student account (see backend routes/auth.py);
- * on success, logs the user in immediately and navigates to the policy library. */
+ * on success, logs the user in immediately and navigates to the welcome page. */
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register(name, email, password);
-      navigate("/policies");
+      navigate("/welcome");
     } catch (err) {
       setError(err.message);
     } finally {
