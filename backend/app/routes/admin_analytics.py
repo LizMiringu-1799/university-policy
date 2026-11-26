@@ -151,8 +151,8 @@ def _sample_queries(document_id, limit=SAMPLE_QUERIES_PER_DOCUMENT):
     unanswered = (
         base_query()
         .filter(QueryLog.status == "unanswered")
-        .order_by(QueryLog.created_at.desc())
-        .distinct()
+        .group_by(QueryLog.query_text)
+        .order_by(func.max(QueryLog.created_at).desc())
         .limit(limit)
         .all()
     )
@@ -160,7 +160,9 @@ def _sample_queries(document_id, limit=SAMPLE_QUERIES_PER_DOCUMENT):
 
     remaining = limit - len(samples)
     if remaining > 0:
-        query = base_query().order_by(QueryLog.created_at.desc()).distinct()
+        # group_by + max(), not DISTINCT + ORDER BY: MySQL 8 rejects ordering a DISTINCT
+        # query by a column that isn't selected (error 3065); MariaDB tolerated it.
+        query = base_query().group_by(QueryLog.query_text).order_by(func.max(QueryLog.created_at).desc())
         if samples:
             query = query.filter(~QueryLog.query_text.in_(samples))
         samples += [row[0] for row in query.limit(remaining).all()]
