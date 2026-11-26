@@ -23,3 +23,6 @@ chromadb>=1.0.0
 # LLM_BASE_URL, so the provider is configuration rather than a dependency.
 openai==2.53.0
 pydantic==2.13.4
+
+# Production web server (Railway). One worker: Chroma and the ingestion thread assume a single process.
+gunicorn==23.0.0
